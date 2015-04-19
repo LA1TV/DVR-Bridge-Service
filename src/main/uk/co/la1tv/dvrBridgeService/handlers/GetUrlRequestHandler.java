@@ -3,11 +3,11 @@ package uk.co.la1tv.dvrBridgeService.handlers;
 import org.springframework.stereotype.Component;
 
 @Component
-public class StartRequestHandler implements IRequestHandler {
+public class GetUrlRequestHandler implements IRequestHandler {
 
 	@Override
 	public String getType() {
-		return "START";
+		return "GET_URL";
 	}
 
 	@Override

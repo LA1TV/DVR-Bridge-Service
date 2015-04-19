@@ -6,5 +6,5 @@ public interface IRequestHandler {
 	public String getType();
 	
 	// handle the request and return what should be returned to the user
-	public Object handle();
+	public Object handle(long streamId);
 }

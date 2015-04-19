@@ -21,13 +21,13 @@ public class MainController {
 	}
 	
 	@RequestMapping(value = "/dvrBridgeService", method = RequestMethod.POST)
-	public Object handlePost(@RequestParam("type") String type) {
+	public Object handlePost(@RequestParam("type") String type, @RequestParam("id") long streamId) {
 		
 		IRequestHandler handler = requestHandlers.getRequestHandlerForType(type);
 		if (handler == null) {
 			throw(new InternalServerErrorException("Unknown type."));
 		}
-		return handler.handle();
+		return handler.handle(streamId);
 	}
 	
 	
