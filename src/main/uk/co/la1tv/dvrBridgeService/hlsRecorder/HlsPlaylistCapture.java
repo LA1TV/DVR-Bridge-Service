@@ -11,8 +11,8 @@ public class HlsPlaylistCapture {
 	
 	private final HlsPlaylist playlist;
 	private int captureState = 0; // 0=not started, 1=capturing, 2=stopped
-	private Long captureStartTime = null;
-	private long captureDuration = 0; // the number of seconds currently captured
+	private Long captureStartTime = null; // start time in unix time in milliseconds
+	private long captureDuration = 0; // the number of milliseconds currently captured
 	// the segments that have been downloaded in order
 	private ArrayList<HlsSegment> segments = new ArrayList<>();
 	
@@ -33,7 +33,7 @@ public class HlsPlaylistCapture {
 				throw(new RuntimeException("Invalid capture state."));
 			}
 			captureState = 1;
-			captureStartTime = System.currentTimeMillis()/1000;
+			captureStartTime = System.currentTimeMillis();
 			// TODO
 		}
 	}
@@ -114,8 +114,8 @@ public class HlsPlaylistCapture {
 	
 	/**
 	 * Get the contents of the playlist file that represents this capture
-	 * from a specific time (seconds) into the recording and for the specific
-	 * duration (seconds). The start time must be a time that maps to the start of 
+	 * from a specific time (milliseconds) into the recording and for the specific
+	 * duration (milliseconds). The start time must be a time that maps to the start of 
 	 * a segment, and the duration must be a duration that ends at the end of
 	 * a segment. Look at roundTimeToSegment
 	 * 
