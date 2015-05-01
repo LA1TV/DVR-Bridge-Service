@@ -17,4 +17,12 @@ public class HlsPlaylist {
 		this.playlistUrl = playlistUrl;
 	}
 	
+	/**
+	 * Get the playlists url.
+	 * @return
+	 */
+	public URL getUrl() {
+		return playlistUrl;
+	}
+	
 }
