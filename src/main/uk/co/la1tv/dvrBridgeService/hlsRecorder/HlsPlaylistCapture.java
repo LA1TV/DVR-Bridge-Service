@@ -4,12 +4,27 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
+import uk.co.la1tv.dvrBridgeService.helpers.RuntimeHelper;
+
 /**
  * An object that represents a hls playlist recording.
  */
+@Component
+@Scope("prototype")
 public class HlsPlaylistCapture {
 
 	private final Object lock = new Object();
+	
+	@Value("${m3u8Parser.nodePath}")
+	private String nodePath;
+	
+	@Value("${m3u8Parser.applicationJsPath}")
+	private String m3u8ParserApplicationPath;
 	
 	private final HlsPlaylist playlist;
 	private int captureState = 0; // 0=not started, 1=capturing, 2=stopped
@@ -141,6 +156,7 @@ public class HlsPlaylistCapture {
 		@Override
 		public void run() {
 			synchronized(lock) {
+				System.out.println("EXECUTING");
 				Long lastSequenceNumber = !segments.isEmpty() ? segments.get(segments.size()-1).getSequenceNumber() : null;
 				// the next sequence number will always be one more than the last one as per the specification
 				// if we don't have any segments yet then we will just grab the first segment in the file and
@@ -149,6 +165,8 @@ public class HlsPlaylistCapture {
 				// TODO use the node app to get the json data from the playlist file, and then
 				// get any new segments using the segment file store, and create an entry for segments.
 				String playlistUrl = playlist.getUrl().toExternalForm();
+				int exitVal = RuntimeHelper.executeProgram(new String[] {FileHelper.format(nodePath), FileHelper.format(m3u8ParserApplicationPath), playlistUrl}, null, null, null);
+				
 			}
 			
 		}
