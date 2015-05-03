@@ -31,23 +31,19 @@ public class RuntimeHelper {
 			Process proc = rt.exec(cmd, null, workingDir);
 			// consume the err stream and stdout stream from the process
 			Thread inputStreamThread;
-			if (inputStream != null) {
-				inputStream.setStream(proc.getInputStream());
-				inputStreamThread = new Thread(inputStream);
+			if (inputStream == null) {
+				inputStream = new StreamGobbler();
 			}
-			else {
-				inputStreamThread = new StreamGobbler(proc.getInputStream(), StreamType.STDOUT); // the input stream is the STDOUT from the program being executed
-			}
+			inputStream.setStream(proc.getInputStream());
+			inputStreamThread = new Thread(inputStream);
 			inputStreamThread.start();
 			
 			Thread errStreamThread;
-			if (errStream != null) {
-				errStream.setStream(proc.getErrorStream());
-				errStreamThread = new Thread(errStream);
+			if (errStream == null) {
+				errStream = new StreamGobbler();
 			}
-			else {
-				errStreamThread = new StreamGobbler(proc.getErrorStream(), StreamType.ERR);
-			}
+			errStream.setStream(proc.getErrorStream());
+			errStreamThread = new Thread(errStream);
 			errStreamThread.start();
 			
 			// wait make sure stream threads have finished collecting output

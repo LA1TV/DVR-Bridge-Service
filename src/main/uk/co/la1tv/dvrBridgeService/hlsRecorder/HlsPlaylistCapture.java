@@ -4,12 +4,17 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.apache.log4j.Logger;
+import org.json.simple.JSONObject;
+import org.json.simple.JSONValue;
+import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
 import uk.co.la1tv.dvrBridgeService.helpers.RuntimeHelper;
+import uk.co.la1tv.dvrBridgeService.helpers.StreamGobbler;
 
 /**
  * An object that represents a hls playlist recording.
@@ -18,6 +23,8 @@ import uk.co.la1tv.dvrBridgeService.helpers.RuntimeHelper;
 @Scope("prototype")
 public class HlsPlaylistCapture {
 
+	private static Logger logger = Logger.getLogger(HlsPlaylistCapture.class);
+	
 	private final Object lock = new Object();
 	
 	@Value("${m3u8Parser.nodePath}")
@@ -165,8 +172,24 @@ public class HlsPlaylistCapture {
 				// TODO use the node app to get the json data from the playlist file, and then
 				// get any new segments using the segment file store, and create an entry for segments.
 				String playlistUrl = playlist.getUrl().toExternalForm();
-				int exitVal = RuntimeHelper.executeProgram(new String[] {FileHelper.format(nodePath), FileHelper.format(m3u8ParserApplicationPath), playlistUrl}, null, null, null);
-				
+				StreamGobbler outputCollector = new StreamGobbler();
+				int exitVal = RuntimeHelper.executeProgram(new String[] {FileHelper.format(nodePath), FileHelper.format(m3u8ParserApplicationPath), playlistUrl}, null, outputCollector, null);
+				if (exitVal != 0) {
+					// TODO stop capture
+					logger.warn("Error trying to retrieve playlist information.");
+					return;
+				}
+				String playlistInfoJsonString = outputCollector.getOutput();
+				JSONObject playlistInfo = null;
+				try {
+					playlistInfo = (JSONObject) JSONValue.parseWithException(playlistInfoJsonString);
+				} catch (ParseException e) {
+					// TODO stop capture
+					logger.warn("Error trying to retrieve playlist information.");
+					e.printStackTrace();
+					return;
+				}
+				System.out.println(playlistInfo.toJSONString());
 			}
 			
 		}

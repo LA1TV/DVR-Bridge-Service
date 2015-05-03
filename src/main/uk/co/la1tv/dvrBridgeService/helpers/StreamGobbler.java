@@ -9,19 +9,16 @@ import org.apache.log4j.Logger;
 
 /**
  * Reads an input stream and logs it. Terminates when the stream ends.
+ * 
+ * Also provides a method to retrieve all the output as a string.
  *
  */
-public class StreamGobbler extends Thread {
+public class StreamGobbler extends Thread implements StreamMonitor {
 	
 	private static Logger logger = Logger.getLogger(StreamGobbler.class);
 	
-	private InputStream is;
-	private StreamType type;
-
-	public StreamGobbler(InputStream is, StreamType type) {
-		this.is = is;
-		this.type = type;
-	}
+	private InputStream is = null;
+	private String output = "";
 	
 	@Override
 	public void run() {
@@ -33,11 +30,25 @@ public class StreamGobbler extends Thread {
 		String line = null;
 		try {
 			while((line = br.readLine()) != null) {
-				logger.trace(type.name()+": "+line);
+				logger.trace(line);
+				output += line+"\n";
 			}
 		} catch (IOException e) {
 			throw(new RuntimeException("Error occured when trying to read stream."));
 		}
 		logger.trace("StreamGobbler finished.");
+	}
+
+	@Override
+	public void setStream(InputStream stream) {
+		is = stream;
+	}
+	
+	/**
+	 * Get all the output that has occurred (so far).
+	 * @return
+	 */
+	public String getOutput() {
+		return output;
 	}
 }
