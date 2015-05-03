@@ -95,57 +95,13 @@ public class HlsPlaylistCapture {
 		return captureState == 1;
 	}
 	
-	/**
-	 * Rounds the time that is provided to a time that is on a segment
-	 * boundary.
-	 * @param time The input time.
-	 * @param mode The rounding mode.
-	 * @return A time that sits at a segment boundary.
-	 */
-	public long roundTimeToSegment(long time, SegmentTimeRoundMode mode) {
-		if (time < 0) {
-			throw(new RuntimeException("Invalid time."));
-		}
-		synchronized(lock) {
-			if (captureState == 0) {
-				return 0;
-			}
-			long timeUpTo = 0;
-			for (int i=0; i<segments.size(); i++) {
-				HlsSegment segment = segments.get(i);
-				long nextSegmentTime = timeUpTo += segment.getDuration();
-				if (timeUpTo == time || ((mode == SegmentTimeRoundMode.PREVIOUS_SEGMENT && nextSegmentTime > time))) {
-					return timeUpTo;
-				}
-				else if (mode == SegmentTimeRoundMode.NEXT_SEGMENT && timeUpTo > time) {
-					return nextSegmentTime;
-				}
-				else if (mode == SegmentTimeRoundMode.CLOSEST_SEGMENT && nextSegmentTime < time && timeUpTo > time) {
-					return time - timeUpTo < nextSegmentTime - time ? timeUpTo : nextSegmentTime;
-				}
-				timeUpTo = nextSegmentTime;
-			}
-			return timeUpTo;
-		}
-	}
 	
 	/**
 	 * Get the contents of the playlist file that represents this capture
-	 * from a specific time (milliseconds) into the recording up to the endTime
-	 * (milliseconds). The start time and ent times must be times that maps to the start of 
-	 * a segment. Look at roundTimeToSegment
-	 * 
-	 * An endTime of -1 means the playlist should represent the entire recording.
 	 */
-	public String generatePlaylistFile(long startTime, long endTime) {
+	public String generatePlaylistFile() {
 		if (captureState == 0) {
 			throw(new RuntimeException("Capture not started yet."));
-		}
-		else if (startTime < 0 || startTime >= captureDuration) {
-			throw(new RuntimeException("Invalid start time."));
-		}
-		else if (endTime < -1 || endTime <= startTime || endTime > captureDuration) {
-			throw(new RuntimeException("Invalid end time."));
 		}
 		
 		String contents = "";
@@ -154,51 +110,16 @@ public class HlsPlaylistCapture {
 		contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration/1000+"\n";
 		contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
 		
-		long timeUpTo = 0;
-		boolean foundStartTime = false;
-		boolean foundEnd = false;
 		for(HlsSegment segment : segments) {
-			if (timeUpTo == startTime) {
-				foundStartTime = true;
+			if (segment.getDiscontinuityFlag()) {
+				contents += "#EXT-X-DISCONTINUITY\n";
 			}
-			else if (!foundStartTime && timeUpTo > startTime) {
-				// gone past start time. Start time is not at a boundary
-				break;
-			}
-			
-			if (endTime != -1 && timeUpTo + segment.getDuration() == endTime) {
-				// this should be the last segment
-				foundEnd = true;
-			}
-			
-			if (foundStartTime) {
-				if (segment.getDiscontinuityFlag()) {
-					contents += "#EXT-X-DISCONTINUITY\n";
-				}
-				contents += "#EXTINF:"+segment.getDuration()/1000+",\n";
-				contents += "[URL]\n"; // TODO
-			}
-			
-			timeUpTo += segment.getDuration();
-			
-			if (foundEnd) {
-				// mark this as the end of the event
-				contents += "#EXT-X-ENDLIST\n";
-				break;
-			}
+			contents += "#EXTINF:"+segment.getDuration()/1000+",\n";
+			contents += "[URL]\n"; // TODO
 		}
 		
-		if (!foundStartTime) {
-			throw(new RuntimeException("Start time did not fall at a segment boundary."));
-		}
-		
-		if (endTime != -1 && !foundEnd) {
-			throw(new RuntimeException("End time did not fall at a segment boundary."));
-		}
-		
-		if (endTime == -1 && captureState == 2) {
-			// request was to get everything, and recording has finished
-			// mark event as finished
+		if (captureState == 2) {
+			// recording has finished so mark event as finished
 			contents += "#EXT-X-ENDLIST\n";
 		}
 		return contents;
