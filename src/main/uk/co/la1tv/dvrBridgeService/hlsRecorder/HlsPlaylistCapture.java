@@ -150,14 +150,14 @@ public class HlsPlaylistCapture {
 		String contents = "";
 		contents += "#EXTM3U\n";
 		contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
-		contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration/1000+"\n";
+		contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration+"\n";
 		contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
 		
 		for(HlsSegment segment : segments) {
 			if (segment.getDiscontinuityFlag()) {
 				contents += "#EXT-X-DISCONTINUITY\n";
 			}
-			contents += "#EXTINF:"+segment.getDuration()/1000+",\n";
+			contents += "#EXTINF:"+segment.getDuration()+",\n";
 			contents += "[URL]\n"; // TODO
 		}
 		
@@ -259,6 +259,7 @@ public class HlsPlaylistCapture {
 					logger.warn("Error retrieveing playlist so capture stopped.");
 					stopCapture();
 				}
+				
 				JSONObject properties = (JSONObject) playlistInfo.get("properties");
 				int firstSequenceNumber = Integer.valueOf(String.valueOf(properties.get("mediaSequence")));
 				
@@ -273,7 +274,7 @@ public class HlsPlaylistCapture {
 						boolean discontinuityFlag = itemProperties.get("discontinuity") != null;
 						URL segmentUrl = null;
 						try {
-							segmentUrl = new URL(playlist.getUrl(), String.valueOf(itemProperties.get("uri")))
+							segmentUrl = new URL(playlist.getUrl(), String.valueOf(itemProperties.get("uri")));
 						} catch (MalformedURLException e) {
 							throw(new IncompletePlaylistException());
 						}
@@ -282,7 +283,7 @@ public class HlsPlaylistCapture {
 					}
 					seqNum++;
 				}
-				System.out.println(segments.size());
+				System.out.println(generatePlaylistFile());
 			}
 			
 		}
