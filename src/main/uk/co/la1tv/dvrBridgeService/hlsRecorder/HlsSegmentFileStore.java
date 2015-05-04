@@ -4,7 +4,11 @@ import java.io.File;
 import java.net.URL;
 import java.util.HashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
+
+import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
 
 /**
  * Holds references to all of the segment files that have been downloaded
@@ -12,6 +16,12 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class HlsSegmentFileStore {
+	
+	@Autowired
+	private ApplicationContext context;
+	
+	@Autowired
+	private HlsFileGenerator hlsFileGenerator;
 	
 	// Key is the hashCode of the remote url
 	private final HashMap<Integer, HlsSegmentFile> segments = new HashMap<>();
@@ -28,9 +38,9 @@ public class HlsSegmentFileStore {
 		if (segments.containsKey(hashCode)) {
 			return segments.get(hashCode);
 		}
-		// TODO download segment and store somewhere
-		File localFile = null; // TODO
-		HlsSegmentFile newSegment = new HlsSegmentFile(remoteUrl, localFile);
+		File localFile = hlsFileGenerator.generateFile(FileHelper.getExtension(remoteUrl.getFile()));
+		
+		HlsSegmentFile newSegment = context.getBean(HlsSegmentFile.class, remoteUrl, localFile);
 		segments.put(hashCode, newSegment);
 		return newSegment;
 	}

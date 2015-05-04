@@ -154,11 +154,18 @@ public class HlsPlaylistCapture {
 		contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
 		
 		for(HlsSegment segment : segments) {
+			
+			HlsSegmentFile segmentFile = segment.getSegmentFile();
+			if (!segmentFile.isAvailable()) {
+				// can't get any more segments until this one has the file downloaded.
+				break;
+			}
+			
 			if (segment.getDiscontinuityFlag()) {
 				contents += "#EXT-X-DISCONTINUITY\n";
 			}
 			contents += "#EXTINF:"+segment.getDuration()+",\n";
-			contents += "[URL]\n"; // TODO
+			contents += segmentFile.getFileUrl().toExternalForm()+"\n";
 		}
 		
 		if (captureState == 2) {
@@ -278,8 +285,8 @@ public class HlsPlaylistCapture {
 						} catch (MalformedURLException e) {
 							throw(new IncompletePlaylistException());
 						}
-						segments.add(new HlsSegment(hlsSegmentFileStore.getSegment(segmentUrl), seqNum, duration, discontinuityFlag));
 						System.out.println(segments.size());
+						segments.add(new HlsSegment(hlsSegmentFileStore.getSegment(segmentUrl), seqNum, duration, discontinuityFlag));
 					}
 					seqNum++;
 				}
