@@ -2,6 +2,8 @@ package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -10,14 +12,18 @@ import org.apache.commons.exec.CommandLine;
 import org.apache.commons.exec.DefaultExecutor;
 import org.apache.commons.exec.PumpStreamHandler;
 import org.apache.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.exceptions.IncompletePlaylistException;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.exceptions.PlaylistRequestException;
 
 /**
  * An object that represents a hls playlist recording.
@@ -39,15 +45,18 @@ public class HlsPlaylistCapture {
 	@Value("${app.playlistUpdateInterval}")
 	private int playlistUpdateInterval;
 	
+	@Autowired
+	private HlsSegmentFileStore hlsSegmentFileStore;
+	
 	private final HlsPlaylist playlist;
 	private int captureState = 0; // 0=not started, 1=capturing, 2=stopped
 	private Long captureStartTime = null; // start time in unix time in milliseconds
-	private long captureDuration = 0; // the number of milliseconds currently captured
+	private double captureDuration = 0; // the number of seconds currently captured
 	// the segments that have been downloaded in order
 	private ArrayList<HlsSegment> segments = new ArrayList<>();
 	// the maximum length that a segment can be (milliseconds)
 	// retrieved from the playlist
-	private Integer segmentTargetDuration = null;
+	private Float segmentTargetDuration = null;
 	private final Timer updateTimer = new Timer();
 	
 	/**
@@ -60,16 +69,23 @@ public class HlsPlaylistCapture {
 	
 	/**
 	 * Start capturing. This operation can only be performed once.
+	 * False is returned if the capture could not be started for some reason.
 	 */
-	public void startCapture() {
+	public boolean startCapture() {
 		synchronized(lock) {
 			if (captureState != 0) {
 				throw(new RuntimeException("Invalid capture state."));
 			}
+			try {
+				retrievePlaylistMetadata();
+			} catch (PlaylistRequestException e) {
+				logger.warn("An error occurred retrieving the playlist so capture could not be started.");
+				return false;
+			}
 			captureState = 1;
 			captureStartTime = System.currentTimeMillis();
-			retrievePlaylistMetadata(); // TODO handle error
 			updateTimer.schedule(new UpdateTimerTask(), 0, playlistUpdateInterval);
+			return true;
 		}
 	}
 	
@@ -103,9 +119,9 @@ public class HlsPlaylistCapture {
 	/**
 	 * Get the duration of the capture (seconds). This is dynamic and will
 	 * update if a capture is currently in progress.
-	 * @return the unix timestamp (seconds)
+	 * @return
 	 */
-	public long getCaptureDuration() {
+	public double getCaptureDuration() {
 		synchronized(lock) {
 			if (captureState == 0) {
 				throw(new RuntimeException("Capture not started yet."));
@@ -155,44 +171,46 @@ public class HlsPlaylistCapture {
 	/**
 	 * Get any necessary metadata about the playlist.
 	 * e.g the segmentTargetDuration
+	 * @throws PlaylistRequestException 
 	 */
-	private void retrievePlaylistMetadata() {
+	private void retrievePlaylistMetadata() throws PlaylistRequestException {
 		JSONObject info = getPlaylistInfo();
-		if (info == null) {
-			// TODO
-			return;
+		JSONObject properties = (JSONObject) info.get("properties");
+		String durationStr = String.valueOf(properties.get("targetDuration"));
+		if (durationStr == null) {
+			throw(new IncompletePlaylistException());
 		}
-		//segmentTargetDuration = (Integer) info.get("something");
-		
+		float duration =Float.valueOf(durationStr);
+		segmentTargetDuration = duration;
 	}
 	
 	/**
 	 * Make request to get playlist, parse it, and return info.
-	 * Returns null if there was an error.
 	 * @return
+	 * @throws PlaylistRequestException 
 	 */
-	private JSONObject getPlaylistInfo() {
+	private JSONObject getPlaylistInfo() throws PlaylistRequestException {
 		String playlistUrl = playlist.getUrl().toExternalForm();
 		
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-	    CommandLine commandLine = new CommandLine(FileHelper.format(nodePath));
-	    commandLine.addArgument(FileHelper.format(m3u8ParserApplicationPath));
-	    commandLine.addArgument(playlistUrl);
-	    DefaultExecutor exec = new DefaultExecutor();
-	    // handle the stdout stream, ignore error stream
-	    PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream, null);
-	    exec.setStreamHandler(streamHandler);
-	    int exitVal;
+		CommandLine commandLine = new CommandLine(FileHelper.format(nodePath));
+		commandLine.addArgument(FileHelper.format(m3u8ParserApplicationPath));
+		commandLine.addArgument(playlistUrl);
+		DefaultExecutor exec = new DefaultExecutor();
+		// handle the stdout stream, ignore error stream
+		PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream, null);
+		exec.setStreamHandler(streamHandler);
+		int exitVal;
 		try {
 			exitVal = exec.execute(commandLine);
 		} catch (IOException e1) {
 			e1.printStackTrace();
 			logger.warn("Error trying to retrieve playlist information.");
-			return null;
+			throw(new PlaylistRequestException());
 		}
 	    if (exitVal != 0) {
 			logger.warn("Error trying to retrieve playlist information.");
-			return null;
+			throw(new PlaylistRequestException());
 		}
 		String playlistInfoJsonString = outputStream.toString();
 		JSONObject playlistInfo = null;
@@ -201,10 +219,20 @@ public class HlsPlaylistCapture {
 		} catch (ParseException e) {
 			e.printStackTrace();
 			logger.warn("Error trying to retrieve playlist information.");
-			return null;
+			throw(new PlaylistRequestException());
 		}
-		System.out.println(playlistInfo.toJSONString());
 		return playlistInfo;
+	}
+	
+	/**
+	 * Extract the playlist items out of playlistInfo.
+	 * Returns null if there was an error.
+	 * @return
+	 */
+	private JSONArray extractPlaylistItems(JSONObject playlistInfo) {
+		JSONObject items = (JSONObject) playlistInfo.get("items");
+		JSONArray playlistItems = (JSONArray) items.get("PlaylistItem");
+		return playlistItems;
 	}
 	
 	/**
@@ -215,14 +243,46 @@ public class HlsPlaylistCapture {
 		@Override
 		public void run() {
 			synchronized(lock) {
-				Long lastSequenceNumber = !segments.isEmpty() ? segments.get(segments.size()-1).getSequenceNumber() : null;
+				if (captureState != 1) {
+					return;
+				}
+				
+				Integer lastSequenceNumber = !segments.isEmpty() ? segments.get(segments.size()-1).getSequenceNumber() : null;
 				// the next sequence number will always be one more than the last one as per the specification
 				// if we don't have any segments yet then we will just grab the first segment in the file and
 				// get its sequence number.
-				Long nextSequenceNumber = lastSequenceNumber != null ? lastSequenceNumber+1 : null;
-				// TODO use the node app to get the json data from the playlist file, and then
-				// get any new segments using the segment file store, and create an entry for segments.
-				getPlaylistInfo();
+				Integer nextSequenceNumber = lastSequenceNumber != null ? lastSequenceNumber+1 : null;
+				JSONObject playlistInfo = null;
+				try {
+					playlistInfo = getPlaylistInfo();
+				} catch (PlaylistRequestException e) {
+					logger.warn("Error retrieveing playlist so capture stopped.");
+					stopCapture();
+				}
+				JSONObject properties = (JSONObject) playlistInfo.get("properties");
+				int firstSequenceNumber = Integer.valueOf(String.valueOf(properties.get("mediaSequence")));
+				
+				JSONArray items = extractPlaylistItems(playlistInfo);
+				int seqNum = firstSequenceNumber;
+				for(int i=0; i<items.size(); i++) {
+					if (nextSequenceNumber == null || seqNum >= nextSequenceNumber) {
+						// this is a new item
+						JSONObject item = (JSONObject) items.get(i);
+						JSONObject itemProperties = (JSONObject) item.get("properties");
+						float duration = Float.parseFloat(String.valueOf(itemProperties.get("duration")));
+						boolean discontinuityFlag = itemProperties.get("discontinuity") != null;
+						URL segmentUrl = null;
+						try {
+							segmentUrl = new URL(playlist.getUrl(), String.valueOf(itemProperties.get("uri")))
+						} catch (MalformedURLException e) {
+							throw(new IncompletePlaylistException());
+						}
+						segments.add(new HlsSegment(hlsSegmentFileStore.getSegment(segmentUrl), seqNum, duration, discontinuityFlag));
+						System.out.println(segments.size());
+					}
+					seqNum++;
+				}
+				System.out.println(segments.size());
 			}
 			
 		}
