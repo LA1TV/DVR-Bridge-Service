@@ -1,9 +1,14 @@
 package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.apache.commons.exec.CommandLine;
+import org.apache.commons.exec.DefaultExecutor;
+import org.apache.commons.exec.PumpStreamHandler;
 import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -13,8 +18,6 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
-import uk.co.la1tv.dvrBridgeService.helpers.RuntimeHelper;
-import uk.co.la1tv.dvrBridgeService.helpers.StreamGobbler;
 
 /**
  * An object that represents a hls playlist recording.
@@ -32,6 +35,9 @@ public class HlsPlaylistCapture {
 	
 	@Value("${m3u8Parser.applicationJsPath}")
 	private String m3u8ParserApplicationPath;
+	
+	@Value("${app.playlistUpdateInterval}")
+	private int playlistUpdateInterval;
 	
 	private final HlsPlaylist playlist;
 	private int captureState = 0; // 0=not started, 1=capturing, 2=stopped
@@ -63,8 +69,7 @@ public class HlsPlaylistCapture {
 			captureState = 1;
 			captureStartTime = System.currentTimeMillis();
 			retrievePlaylistMetadata(); // TODO handle error
-			// TODO: move interval to config
-			updateTimer.schedule(new UpdateTimerTask(), 0, 2000);
+			updateTimer.schedule(new UpdateTimerTask(), 0, playlistUpdateInterval);
 		}
 	}
 	
@@ -152,7 +157,54 @@ public class HlsPlaylistCapture {
 	 * e.g the segmentTargetDuration
 	 */
 	private void retrievePlaylistMetadata() {
-		// TODO 
+		JSONObject info = getPlaylistInfo();
+		if (info == null) {
+			// TODO
+			return;
+		}
+		//segmentTargetDuration = (Integer) info.get("something");
+		
+	}
+	
+	/**
+	 * Make request to get playlist, parse it, and return info.
+	 * Returns null if there was an error.
+	 * @return
+	 */
+	private JSONObject getPlaylistInfo() {
+		String playlistUrl = playlist.getUrl().toExternalForm();
+		
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+	    CommandLine commandLine = new CommandLine(FileHelper.format(nodePath));
+	    commandLine.addArgument(FileHelper.format(m3u8ParserApplicationPath));
+	    commandLine.addArgument(playlistUrl);
+	    DefaultExecutor exec = new DefaultExecutor();
+	    // handle the stdout stream, ignore error stream
+	    PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream, null);
+	    exec.setStreamHandler(streamHandler);
+	    int exitVal;
+		try {
+			exitVal = exec.execute(commandLine);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+			logger.warn("Error trying to retrieve playlist information.");
+			return null;
+		}
+	    if (exitVal != 0) {
+			logger.warn("Error trying to retrieve playlist information.");
+			return null;
+		}
+		String playlistInfoJsonString = outputStream.toString();
+		JSONObject playlistInfo = null;
+		try {
+			playlistInfo = (JSONObject) JSONValue.parseWithException(playlistInfoJsonString);
+		} catch (ParseException e) {
+			e.printStackTrace();
+			logger.warn("Error trying to retrieve playlist information.");
+			return null;
+		}
+		System.out.println(playlistInfo.toJSONString());
+		return playlistInfo;
 	}
 	
 	/**
@@ -163,7 +215,6 @@ public class HlsPlaylistCapture {
 		@Override
 		public void run() {
 			synchronized(lock) {
-				System.out.println("EXECUTING");
 				Long lastSequenceNumber = !segments.isEmpty() ? segments.get(segments.size()-1).getSequenceNumber() : null;
 				// the next sequence number will always be one more than the last one as per the specification
 				// if we don't have any segments yet then we will just grab the first segment in the file and
@@ -171,25 +222,7 @@ public class HlsPlaylistCapture {
 				Long nextSequenceNumber = lastSequenceNumber != null ? lastSequenceNumber+1 : null;
 				// TODO use the node app to get the json data from the playlist file, and then
 				// get any new segments using the segment file store, and create an entry for segments.
-				String playlistUrl = playlist.getUrl().toExternalForm();
-				StreamGobbler outputCollector = new StreamGobbler();
-				int exitVal = RuntimeHelper.executeProgram(new String[] {FileHelper.format(nodePath), FileHelper.format(m3u8ParserApplicationPath), playlistUrl}, null, outputCollector, null);
-				if (exitVal != 0) {
-					// TODO stop capture
-					logger.warn("Error trying to retrieve playlist information.");
-					return;
-				}
-				String playlistInfoJsonString = outputCollector.getOutput();
-				JSONObject playlistInfo = null;
-				try {
-					playlistInfo = (JSONObject) JSONValue.parseWithException(playlistInfoJsonString);
-				} catch (ParseException e) {
-					// TODO stop capture
-					logger.warn("Error trying to retrieve playlist information.");
-					e.printStackTrace();
-					return;
-				}
-				System.out.println(playlistInfo.toJSONString());
+				getPlaylistInfo();
 			}
 			
 		}

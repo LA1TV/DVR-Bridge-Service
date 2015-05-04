@@ -35,7 +35,7 @@ public class Application {
     	
     	HlsPlaylistCapture a = null;
 		try {
-			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL("https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8")));
+			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL("https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8")));
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
