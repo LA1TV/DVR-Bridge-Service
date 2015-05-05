@@ -38,7 +38,7 @@ public class DownloadManager {
 	 * @param destination
 	 * @param completionCalback
 	 */
-	public void queueDownload(URL source, File destination, IDownloadCompleteCallback completionCalback) {
+	public void queueDownload(URL source, File destination, IHlsSegmentFileDownloadCallback completionCalback) {
 		executor.execute(new Downloader(source, destination, completionCalback));
 	}
 	
@@ -46,9 +46,9 @@ public class DownloadManager {
 
 		private final URL source;
 		private final File destination;
-		private final IDownloadCompleteCallback callback;
+		private final IHlsSegmentFileDownloadCallback callback;
 		
-		public Downloader(URL source, File destination, IDownloadCompleteCallback callback) {
+		public Downloader(URL source, File destination, IHlsSegmentFileDownloadCallback callback) {
 			this.source = source;
 			this.destination = destination;
 			this.callback = callback;
@@ -57,6 +57,11 @@ public class DownloadManager {
 		@Override
 		public void run() {
 			boolean success = false;
+			
+			if (callback != null) {
+				callback.onDownloadStart();
+			}
+			
 			try {
 				logger.debug("Attempting to download \""+source.toExternalForm()+"\" to \""+destination.getAbsolutePath()+"\".");
 				ReadableByteChannel rbc = Channels.newChannel(source.openStream());

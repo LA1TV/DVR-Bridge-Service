@@ -3,6 +3,7 @@ package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashSet;
 
 import javax.annotation.PostConstruct;
 
@@ -28,7 +29,8 @@ public class HlsSegmentFile {
 	
 	private final URL remoteUrl; // the url that this segment was located at
 	private final File localFile; // the local location
-	private boolean available = false; // true when the file is downloaded ready for accessing
+	private HlsSegmentFileState state = HlsSegmentFileState.DOWNLOAD_PENDING;
+	private HashSet<IHlsSegmentFileStateChangeCallback> stateChangeCallbacks = new HashSet<>();
 	
 	/**
 	 * @param remoteUrl The url where the segment should be downloaded from.
@@ -54,20 +56,20 @@ public class HlsSegmentFile {
 		return remoteUrl;
 	}
 
-	public boolean isAvailable() {
-		return available;
+	public HlsSegmentFileState getState() {
+		return state;
 	}
 	
 	public File getFile() {
-		if (!available) {
-			throw(new RuntimeException("This file is not available yet."));
+		if (state != HlsSegmentFileState.DOWNLOADED) {
+			throw(new RuntimeException("This file is not available."));
 		}
 		return localFile;
 	}
 	
 	public URL getFileUrl() {
-		if (!available) {
-			throw(new RuntimeException("This file is not available yet."));
+		if (state != HlsSegmentFileState.DOWNLOADED) {
+			throw(new RuntimeException("This file is not available."));
 		}
 		try {
 			return new URL(baseUrl, localFile.getName());
@@ -78,20 +80,48 @@ public class HlsSegmentFile {
 		}
 	}
 	
+	public boolean registerStateChangeCallback(IHlsSegmentFileStateChangeCallback callback) {
+		synchronized(stateChangeCallbacks) {
+			return stateChangeCallbacks.add(callback);
+		}
+	}
+	
+	public boolean unregisterStateChangeCallback(IHlsSegmentFileStateChangeCallback callback) {
+		synchronized(stateChangeCallbacks) {
+			return stateChangeCallbacks.remove(callback);
+		}
+	}
+	
+	private void callStateChangeCallbacks() {
+		synchronized(stateChangeCallbacks) {
+			for(IHlsSegmentFileStateChangeCallback callback : stateChangeCallbacks) {
+				callback.onStateChange(state);
+			}
+		}
+	}
+	
+	private void updateState(HlsSegmentFileState state) {
+		this.state = state;
+		callStateChangeCallbacks();
+	}
+	
 	/**
 	 * Download the file and make it available.
 	 */
 	private void downloadFile() {
-		downloadManager.queueDownload(remoteUrl, localFile, new FileDownloadedCallback());
+		downloadManager.queueDownload(remoteUrl, localFile, new FileDownloadCallback());
 	}
 	
-	private class FileDownloadedCallback implements IDownloadCompleteCallback {
+	private class FileDownloadCallback implements IHlsSegmentFileDownloadCallback {
 
 		@Override
+		public void onDownloadStart() {
+			updateState(HlsSegmentFileState.DOWNLOADING);
+		}
+		
+		@Override
 		public void onCompletion(boolean success) {
-			if (success) {
-				available = true;
-			}
+			updateState(success ? HlsSegmentFileState.DOWNLOADED : HlsSegmentFileState.DOWNLOAD_FAILED);
 		}
 		
 	}

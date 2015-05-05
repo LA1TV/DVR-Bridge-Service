@@ -1,6 +1,11 @@
 package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 
-public interface IDownloadCompleteCallback {
+public interface IHlsSegmentFileDownloadCallback {
+	
+	/**
+	 * Called when a download starts.
+	 */
+	void onDownloadStart();
 	
 	/**
 	 * Called when a download completes.

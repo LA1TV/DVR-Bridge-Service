@@ -1,12 +1,8 @@
 package uk.co.la1tv.dvrBridgeService.helpers;
 
-import org.apache.log4j.Logger;
+import java.io.File;
 
 public class FileHelper {
-	
-	private static Logger logger = Logger.getLogger(FileHelper.class);
-	
-	private FileHelper() {}
 	
 	/**
 	 * Formats the path passed in so that it is correct for the filesystem it's running on. 
@@ -29,5 +25,12 @@ public class FileHelper {
 			return null;
 		}
 		return parts[parts.length-1];
+	}
+	
+	public static void purgeDirectory(File dir) {
+	    for (File file: dir.listFiles()) {
+	        if (file.isDirectory()) purgeDirectory(file);
+	        file.delete();
+	    }
 	}
 }

@@ -35,6 +35,7 @@ public class HlsPlaylistCapture {
 	private static Logger logger = Logger.getLogger(HlsPlaylistCapture.class);
 	
 	private final Object lock = new Object();
+	private final Object playlistGenerationLock = new Object();
 	
 	@Value("${m3u8Parser.nodePath}")
 	private String nodePath;
@@ -58,13 +59,16 @@ public class HlsPlaylistCapture {
 	// retrieved from the playlist
 	private Float segmentTargetDuration = null;
 	private final Timer updateTimer = new Timer();
+	private final IPlaylistUpdatedCallback playlistUpdatedCallback;
+	private String generatedPlaylistContent = "";
 	
 	/**
 	 * Create a new object which represents a capture file for a playlist.
 	 * @param playlist The playlist to generate a capture from.
 	 */
-	public HlsPlaylistCapture(HlsPlaylist playlist) {
+	public HlsPlaylistCapture(HlsPlaylist playlist, IPlaylistUpdatedCallback playlistUpdatedCallback) {
 		this.playlist = playlist;
+		this.playlistUpdatedCallback = playlistUpdatedCallback;
 	}
 	
 	/**
@@ -142,37 +146,62 @@ public class HlsPlaylistCapture {
 	/**
 	 * Get the contents of the playlist file that represents this capture
 	 */
-	public String generatePlaylistFile() {
+	public String getPlaylistContent() {
 		if (captureState == 0) {
 			throw(new RuntimeException("Capture not started yet."));
 		}
-		
-		String contents = "";
-		contents += "#EXTM3U\n";
-		contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
-		contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration+"\n";
-		contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
-		
-		for(HlsSegment segment : segments) {
+		return generatedPlaylistContent;
+	}
+	
+	
+	/**
+	 * Generate the playlist content that can be retrieved with getPlaylistContent
+	 */
+	private void generatePlaylistContent() {
+		synchronized(playlistGenerationLock) {
+			String contents = "";
+			contents += "#EXTM3U\n";
+			contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
+			contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration+"\n";
+			contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
 			
-			HlsSegmentFile segmentFile = segment.getSegmentFile();
-			if (!segmentFile.isAvailable()) {
-				// can't get any more segments until this one has the file downloaded.
-				break;
+			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)
+			boolean allSegmentsDownloaded = true;
+			for(HlsSegment segment : segments) {
+				
+				HlsSegmentFile segmentFile = segment.getSegmentFile();
+				if (segmentFile.getState() == HlsSegmentFileState.DOWNLOAD_FAILED) {
+					// can never put anything else in this playlist, because will always be
+					// missing this chunk
+					break;
+				}
+				else if (segmentFile.getState() != HlsSegmentFileState.DOWNLOADED) {
+					// can't get any more segments until this one has the file downloaded.
+					allSegmentsDownloaded = false;
+					break;
+				}
+				
+				if (segment.getDiscontinuityFlag()) {
+					contents += "#EXT-X-DISCONTINUITY\n";
+				}
+				contents += "#EXTINF:"+segment.getDuration()+",\n";
+				contents += segmentFile.getFileUrl().toExternalForm()+"\n";
 			}
 			
-			if (segment.getDiscontinuityFlag()) {
-				contents += "#EXT-X-DISCONTINUITY\n";
+			if (captureState == 2 && allSegmentsDownloaded) {
+				// recording has finished, and has all segments, so mark event as finished
+				contents += "#EXT-X-ENDLIST\n";
 			}
-			contents += "#EXTINF:"+segment.getDuration()+",\n";
-			contents += segmentFile.getFileUrl().toExternalForm()+"\n";
+			
+			if (contents.equals(generatedPlaylistContent)) {
+				// no change
+				return;
+			}
+			generatedPlaylistContent = contents;
+			if (playlistUpdatedCallback != null) {
+				playlistUpdatedCallback.onPlaylistUpdated(this);
+			}
 		}
-		
-		if (captureState == 2) {
-			// recording has finished so mark event as finished
-			contents += "#EXT-X-ENDLIST\n";
-		}
-		return contents;
 	}
 	
 	/**
@@ -187,7 +216,7 @@ public class HlsPlaylistCapture {
 		if (durationStr == null) {
 			throw(new IncompletePlaylistException());
 		}
-		float duration =Float.valueOf(durationStr);
+		float duration = Float.valueOf(durationStr);
 		segmentTargetDuration = duration;
 	}
 	
@@ -254,16 +283,18 @@ public class HlsPlaylistCapture {
 					return;
 				}
 				
-				Integer lastSequenceNumber = !segments.isEmpty() ? segments.get(segments.size()-1).getSequenceNumber() : null;
+				int numSegments = segments.size();
+				Integer lastSequenceNumber = numSegments > 0 ? segments.get(numSegments-1).getSequenceNumber() : null;
 				// the next sequence number will always be one more than the last one as per the specification
 				// if we don't have any segments yet then we will just grab the first segment in the file and
 				// get its sequence number.
+				// TODO this needs improving. If don't have any chunks yet probably only want the last few so starting close to the point when the capture was started. Also the ones at the top of the file should probably be ignored because will be deleted soon
 				Integer nextSequenceNumber = lastSequenceNumber != null ? lastSequenceNumber+1 : null;
 				JSONObject playlistInfo = null;
 				try {
 					playlistInfo = getPlaylistInfo();
 				} catch (PlaylistRequestException e) {
-					logger.warn("Error retrieveing playlist so capture stopped.");
+					logger.warn("Error retrieving playlist so capture stopped.");
 					stopCapture();
 				}
 				
@@ -285,15 +316,49 @@ public class HlsPlaylistCapture {
 						} catch (MalformedURLException e) {
 							throw(new IncompletePlaylistException());
 						}
-						System.out.println(segments.size());
-						segments.add(new HlsSegment(hlsSegmentFileStore.getSegment(segmentUrl), seqNum, duration, discontinuityFlag));
+						HlsSegmentFile hlsSegmentFile = hlsSegmentFileStore.getSegment(segmentUrl);
+						hlsSegmentFile.registerStateChangeCallback(new HlsSegmentFileStateChangeHandler(hlsSegmentFile));
+						segments.add(new HlsSegment(hlsSegmentFile, i, duration, discontinuityFlag));
 					}
 					seqNum++;
 				}
-				System.out.println(generatePlaylistFile());
+			}
+		}
+	}
+	
+	private class HlsSegmentFileStateChangeHandler implements IHlsSegmentFileStateChangeCallback {
+		
+		// the HlsSegmentFile that this handler has been set up for
+		private final HlsSegmentFile hlsSegmentFile;
+		
+		public HlsSegmentFileStateChangeHandler(HlsSegmentFile hlsSegmentFile) {
+			this.hlsSegmentFile = hlsSegmentFile;
+		}
+		
+		@Override
+		public void onStateChange(HlsSegmentFileState state) {
+			if (state == HlsSegmentFileState.DOWNLOADED) {
+				// regenerate the playlist content.
+				generatePlaylistContent();
+			}
+			else if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
+				logger.warn("Error downloading playlist chunk so stopping capture.");
+				synchronized(lock) {
+					if (captureState != 2) {
+						// capture hasn't already been stopped by an earlier failure
+						stopCapture();
+					}
+				}
+			}
+			else {
+				return;
 			}
 			
+			// don't care about any more state changes so remove handler
+			// so can be garbage collected
+			hlsSegmentFile.unregisterStateChangeCallback(this);
 		}
+		
 	}
 	
 }

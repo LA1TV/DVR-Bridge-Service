@@ -48,6 +48,9 @@ public class HlsFileGenerator {
 		if (!chunksDirectory.canWrite()) {
 			throw(new RuntimeException("Cannot write to chunks directory."));
 		}
+	
+		// empty the folder
+		FileHelper.purgeDirectory(chunksDirectory);
 	}
 	
 	public File generateFile(String extension) {

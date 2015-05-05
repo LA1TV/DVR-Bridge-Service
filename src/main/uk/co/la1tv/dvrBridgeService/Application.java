@@ -15,6 +15,7 @@ import org.springframework.context.annotation.ComponentScan;
 
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylist;
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylistCapture;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.IPlaylistUpdatedCallback;
 
 @ComponentScan
 @EnableAutoConfiguration
@@ -35,7 +36,14 @@ public class Application {
     	
     	HlsPlaylistCapture a = null;
 		try {
-			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL("https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8")));
+			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL("https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8")), new IPlaylistUpdatedCallback() {
+
+				@Override
+				public void onPlaylistUpdated(HlsPlaylistCapture source) {
+					System.out.println(source.getPlaylistContent());
+				}
+				
+			});
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
