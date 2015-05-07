@@ -5,5 +5,5 @@ public interface IPlaylistUpdatedCallback {
 	/**
 	 * Called when the playlist has changed.
 	 */
-	void onPlaylistUpdated(HlsPlaylistCapture source);
+	void onPlaylistUpdated(HlsPlaylistCapture source, String playlistContent);
 }

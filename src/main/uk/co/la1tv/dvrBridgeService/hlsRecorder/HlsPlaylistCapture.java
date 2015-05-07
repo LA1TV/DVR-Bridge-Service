@@ -50,7 +50,7 @@ public class HlsPlaylistCapture {
 	private HlsSegmentFileStore hlsSegmentFileStore;
 	
 	private final HlsPlaylist playlist;
-	private int captureState = 0; // 0=not started, 1=capturing, 2=stopped
+	private HlsPlaylistCaptureState captureState = HlsPlaylistCaptureState.NOT_STARTED;
 	private Long captureStartTime = null; // start time in unix time in milliseconds
 	private double captureDuration = 0; // the number of seconds currently captured
 	// the segments that have been downloaded in order
@@ -77,7 +77,7 @@ public class HlsPlaylistCapture {
 	 */
 	public boolean startCapture() {
 		synchronized(lock) {
-			if (captureState != 0) {
+			if (captureState != HlsPlaylistCaptureState.NOT_STARTED) {
 				throw(new RuntimeException("Invalid capture state."));
 			}
 			try {
@@ -86,7 +86,7 @@ public class HlsPlaylistCapture {
 				logger.warn("An error occurred retrieving the playlist so capture could not be started.");
 				return false;
 			}
-			captureState = 1;
+			captureState = HlsPlaylistCaptureState.CAPTURING;
 			captureStartTime = System.currentTimeMillis();
 			updateTimer.schedule(new UpdateTimerTask(), 0, playlistUpdateInterval);
 			generatePlaylistContent();
@@ -99,13 +99,36 @@ public class HlsPlaylistCapture {
 	 */
 	public void stopCapture() {
 		synchronized(lock) {
-			if (captureState != 1) {
+			if (captureState != HlsPlaylistCaptureState.CAPTURING) {
 				throw(new RuntimeException("Invalid capture state."));
 			}
 			updateTimer.cancel();
 			updateTimer.purge();
-			captureState = 2;
+			captureState = HlsPlaylistCaptureState.STOPPED;
 			generatePlaylistContent();
+		}
+	}
+	
+	/**
+	 * Delete the capture. This operation can only be performed once,
+	 * and must be after the capture has stopped.
+	 */
+	public void deleteCapture() {
+		synchronized(lock) {
+			if (captureState != HlsPlaylistCaptureState.STOPPED) {
+				throw(new RuntimeException("Invalid capture state."));
+			}
+			
+			for (HlsSegment segment : segments) {
+				// release all the files. This allows the HlsSegmentFileStore to delete them
+				HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
+				if (!segmentFile.isReleased()) {
+					// could be possible for 2 items in the remote playlist to be the same file
+					// e.g an advert segment repeated several times
+					segmentFile.release();
+				}
+			}
+			captureState = HlsPlaylistCaptureState.DELETED;
 		}
 	}
 	
@@ -115,7 +138,7 @@ public class HlsPlaylistCapture {
 	 */
 	public long getCaptureStartTime() {
 		synchronized(lock) {
-			if (captureState == 0) {
+			if (captureState == HlsPlaylistCaptureState.NOT_STARTED) {
 				throw(new RuntimeException("Capture not started yet."));
 			}
 			return captureStartTime;
@@ -129,7 +152,7 @@ public class HlsPlaylistCapture {
 	 */
 	public double getCaptureDuration() {
 		synchronized(lock) {
-			if (captureState == 0) {
+			if (captureState == HlsPlaylistCaptureState.NOT_STARTED) {
 				throw(new RuntimeException("Capture not started yet."));
 			}
 			return captureDuration;
@@ -137,11 +160,11 @@ public class HlsPlaylistCapture {
 	}
 	
 	/**
-	 * Determine if the stream is currently being captured.
+	 * Get the current capture state.
 	 * @return
 	 */
-	public boolean isCapturing() {
-		return captureState == 1;
+	public HlsPlaylistCaptureState getCaptureState() {
+		return captureState;
 	}
 	
 	
@@ -149,8 +172,11 @@ public class HlsPlaylistCapture {
 	 * Get the contents of the playlist file that represents this capture
 	 */
 	public String getPlaylistContent() {
-		if (captureState == 0) {
+		if (captureState == HlsPlaylistCaptureState.NOT_STARTED) {
 			throw(new RuntimeException("Capture not started yet."));
+		}
+		else if (captureState == HlsPlaylistCaptureState.DELETED) {
+			throw(new RuntimeException("This capture has been deleted."));
 		}
 		return generatedPlaylistContent;
 	}
@@ -171,7 +197,7 @@ public class HlsPlaylistCapture {
 			boolean allSegmentsDownloaded = true;
 			for(HlsSegment segment : segments) {
 				
-				HlsSegmentFile segmentFile = segment.getSegmentFile();
+				HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
 				if (segmentFile.getState() == HlsSegmentFileState.DOWNLOAD_FAILED) {
 					// can never put anything else in this playlist, because will always be
 					// missing this chunk
@@ -190,7 +216,7 @@ public class HlsPlaylistCapture {
 				contents += segmentFile.getFileUrl().toExternalForm()+"\n";
 			}
 			
-			if (captureState == 2 && allSegmentsDownloaded) {
+			if (captureState == HlsPlaylistCaptureState.STOPPED && allSegmentsDownloaded) {
 				// recording has finished, and has all segments, so mark event as finished
 				contents += "#EXT-X-ENDLIST\n";
 			}
@@ -200,9 +226,7 @@ public class HlsPlaylistCapture {
 				return;
 			}
 			generatedPlaylistContent = contents;
-			if (playlistUpdatedCallback != null) {
-				playlistUpdatedCallback.onPlaylistUpdated(this);
-			}
+			callPlaylistUpdatedCallback(generatedPlaylistContent);
 		}
 	}
 	
@@ -274,6 +298,19 @@ public class HlsPlaylistCapture {
 		return playlistItems;
 	}
 	
+	private void callPlaylistUpdatedCallback(final String playlistContent) {
+		// call the callback in a separate thread to prevent issues if actions are performed
+		// in the callback that call other methods like stopCapture()
+		if (playlistUpdatedCallback != null) {
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					playlistUpdatedCallback.onPlaylistUpdated(HlsPlaylistCapture.this, playlistContent);
+				}
+			}).start();
+		}
+	}
+	
 	/**
 	 * Responsible for retrieving new segments as they become available.
 	 */
@@ -282,7 +319,7 @@ public class HlsPlaylistCapture {
 		@Override
 		public void run() {
 			synchronized(lock) {
-				if (captureState != 1) {
+				if (captureState != HlsPlaylistCaptureState.CAPTURING) {
 					return;
 				}
 				
@@ -334,7 +371,7 @@ public class HlsPlaylistCapture {
 		} catch (MalformedURLException e) {
 			throw(new IncompletePlaylistException());
 		}
-		HlsSegmentFile hlsSegmentFile = hlsSegmentFileStore.getSegment(segmentUrl);
+		HlsSegmentFileProxy hlsSegmentFile = hlsSegmentFileStore.getSegment(segmentUrl);
 		hlsSegmentFile.registerStateChangeCallback(new HlsSegmentFileStateChangeHandler(hlsSegmentFile));
 		synchronized(lock) {
 			segments.add(new HlsSegment(hlsSegmentFile, seqNum, duration, discontinuityFlag));
@@ -344,10 +381,10 @@ public class HlsPlaylistCapture {
 	private class HlsSegmentFileStateChangeHandler implements IHlsSegmentFileStateChangeCallback {
 		
 		// the HlsSegmentFile that this handler has been set up for
-		private final HlsSegmentFile hlsSegmentFile;
+		private final HlsSegmentFileProxy hlsSegmentFile;
 		private boolean handled = false;
 		
-		public HlsSegmentFileStateChangeHandler(HlsSegmentFile hlsSegmentFile) {
+		public HlsSegmentFileStateChangeHandler(HlsSegmentFileProxy hlsSegmentFile) {
 			this.hlsSegmentFile = hlsSegmentFile;
 			handleStateChange(hlsSegmentFile.getState());
 		}
@@ -359,27 +396,34 @@ public class HlsPlaylistCapture {
 				return;
 			}
 			
-			if (state == HlsSegmentFileState.DOWNLOADED) {
-				// regenerate the playlist content.
-				generatePlaylistContent();
-			}
-			else if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
-				logger.warn("Error downloading playlist chunk so stopping capture.");
-				synchronized(lock) {
-					if (captureState != 2) {
+			synchronized(lock) {
+
+				if (captureState == HlsPlaylistCaptureState.DELETED) {
+					// if the capture has gone into the deleted state then the
+					// file will have already been released.
+					return;
+				}
+				
+				if (state == HlsSegmentFileState.DOWNLOADED) {
+					// regenerate the playlist content.
+					generatePlaylistContent();
+				}
+				else if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
+					logger.warn("Error downloading playlist chunk so stopping capture.");
+					if (captureState != HlsPlaylistCaptureState.STOPPED) {
 						// capture hasn't already been stopped by an earlier failure
 						stopCapture();
 					}
 				}
+				else {
+					return;
+				}
+
+				// don't care about any more state changes so remove handler
+				// so can be garbage collected
+				hlsSegmentFile.unregisterStateChangeCallback(this);
+				handled = true;
 			}
-			else {
-				return;
-			}
-			
-			// don't care about any more state changes so remove handler
-			// so can be garbage collected
-			hlsSegmentFile.unregisterStateChangeCallback(this);
-			handled = true;
 		}
 		
 		@Override

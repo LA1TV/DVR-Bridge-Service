@@ -39,10 +39,17 @@ public class Application {
 			String url = "http://public.infozen.cshls.lldns.net/infozen/public/public/public_200.m3u8";
 			//url = "https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8";
 			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL(url)), new IPlaylistUpdatedCallback() {
-
+				
+				private int count = 0;
+				
 				@Override
-				public void onPlaylistUpdated(HlsPlaylistCapture source) {
-					System.out.println(source.getPlaylistContent());
+				public void onPlaylistUpdated(HlsPlaylistCapture source, String playlistContent) {
+					System.out.println(playlistContent);
+					if (++count == 3) {
+						System.out.println("Stopping capture.");
+						source.stopCapture();
+						source.deleteCapture();
+					}
 				}
 				
 			});

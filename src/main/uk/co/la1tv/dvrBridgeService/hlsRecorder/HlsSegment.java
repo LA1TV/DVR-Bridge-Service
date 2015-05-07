@@ -5,12 +5,12 @@ package uk.co.la1tv.dvrBridgeService.hlsRecorder;
  */
 public class HlsSegment {
 
-	private final HlsSegmentFile segmentFile;
+	private final HlsSegmentFileProxy segmentFile;
 	private final int sequenceNumber;
 	private final float duration; // duration of segment
 	private final boolean discontinuityFlag;
 
-	public HlsSegment(HlsSegmentFile segmentFile, int sequenceNumber, float duration, boolean discontinuityFlag) {
+	public HlsSegment(HlsSegmentFileProxy segmentFile, int sequenceNumber, float duration, boolean discontinuityFlag) {
 		this.segmentFile = segmentFile;
 		this.sequenceNumber = sequenceNumber;
 		this.duration = duration;
@@ -21,7 +21,7 @@ public class HlsSegment {
 	 * Get the reference to the segment file.
 	 * @return
 	 */
-	public HlsSegmentFile getSegmentFile() {
+	public HlsSegmentFileProxy getSegmentFile() {
 		return segmentFile;
 	}
 	

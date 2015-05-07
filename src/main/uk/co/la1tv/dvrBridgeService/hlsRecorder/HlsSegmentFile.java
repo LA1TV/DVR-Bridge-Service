@@ -23,6 +23,8 @@ public class HlsSegmentFile {
 	@Autowired
 	private DownloadManager downloadManager;
 	
+	private final Object lock = new Object();
+	
 	@Value("${app.chunksBaseUrl}")
 	private String baseUrlStr;
 	private URL baseUrl = null;
@@ -31,6 +33,9 @@ public class HlsSegmentFile {
 	private final File localFile; // the local location
 	private HlsSegmentFileState state = HlsSegmentFileState.DOWNLOAD_PENDING;
 	private HashSet<IHlsSegmentFileStateChangeCallback> stateChangeCallbacks = new HashSet<>();
+
+	// the number of proxies that are wanting to access to the file
+	private int numProxiesAccessingFile = 0;
 	
 	/**
 	 * @param remoteUrl The url where the segment should be downloaded from.
@@ -61,22 +66,26 @@ public class HlsSegmentFile {
 	}
 	
 	public File getFile() {
-		if (state != HlsSegmentFileState.DOWNLOADED) {
-			throw(new RuntimeException("This file is not available."));
+		synchronized(lock) {
+			if (state != HlsSegmentFileState.DOWNLOADED) {
+				throw(new RuntimeException("This file is not available."));
+			}
+			return localFile;
 		}
-		return localFile;
 	}
 	
 	public URL getFileUrl() {
-		if (state != HlsSegmentFileState.DOWNLOADED) {
-			throw(new RuntimeException("This file is not available."));
-		}
-		try {
-			return new URL(baseUrl, localFile.getName());
-		} catch (MalformedURLException e) {
-			// shouldn't happen!
-			e.printStackTrace();
-			throw(new RuntimeException("Unable to build file url."));
+		synchronized(lock) {
+			if (state != HlsSegmentFileState.DOWNLOADED) {
+				throw(new RuntimeException("This file is not available."));
+			}
+			try {
+				return new URL(baseUrl, localFile.getName());
+			} catch (MalformedURLException e) {
+				// shouldn't happen!
+				e.printStackTrace();
+				throw(new RuntimeException("Unable to build file url."));
+			}
 		}
 	}
 	
@@ -92,6 +101,45 @@ public class HlsSegmentFile {
 		}
 	}
 	
+	/**
+	 * Delete the file.
+	 * This should only be called from the HlsSegmentFileStore
+	 */
+	public boolean deleteFile() {
+		synchronized(lock) {
+			if (state != HlsSegmentFileState.DOWNLOADED) {
+				throw(new RuntimeException("Must be in the DOWNLOADED state in order to be deleted."));
+			}
+			if (numProxiesAccessingFile > 0) {
+				throw(new RuntimeException("There are currently proxies that haven't called release() yet."));
+			}
+			return localFile.delete();
+		}
+	}
+	
+
+	/**
+	 * Called by a proxy when it is created for this file.
+	 */
+	public void onProxyCreated() {
+		numProxiesAccessingFile++;
+	}
+	
+	/**
+	 * Called by a proxy when the release method is called on it.
+	 */
+	public void onProxyReleased() {
+		numProxiesAccessingFile--;
+	}
+	
+	/**
+	 * get the number of proxies that are expecting access to this file at the moment.
+	 * @return
+	 */
+	public int getNumProxiesAccessingFile() {
+		return numProxiesAccessingFile;
+	}
+	
 	private void callStateChangeCallbacks() {
 		HashSet<IHlsSegmentFileStateChangeCallback> clone = null;
 		synchronized(stateChangeCallbacks) {
@@ -99,14 +147,18 @@ public class HlsSegmentFile {
 			// and this would cause a concurrent modification exception
 			clone = new HashSet<>(stateChangeCallbacks);
 		}
-		for(IHlsSegmentFileStateChangeCallback callback : clone) {
-			callback.onStateChange(state);
+		synchronized(lock) {
+			for(IHlsSegmentFileStateChangeCallback callback : clone) {
+				callback.onStateChange(state);
+			}
 		}
 	}
 	
 	private void updateState(HlsSegmentFileState state) {
-		this.state = state;
-		callStateChangeCallbacks();
+		synchronized(lock) {
+			this.state = state;
+			callStateChangeCallbacks();
+		}
 	}
 	
 	/**
