@@ -27,6 +27,8 @@ public class HlsSegment {
 	
 	/**
 	 * Get this segment's sequence number.
+	 * This is the sequence number it was assigned in the remote playlist, NOT the one it
+	 * might get in the generated one.
 	 * @return
 	 */
 	public int getSequenceNumber() {

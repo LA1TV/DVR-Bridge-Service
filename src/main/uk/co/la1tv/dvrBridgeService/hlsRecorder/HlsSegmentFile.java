@@ -93,10 +93,14 @@ public class HlsSegmentFile {
 	}
 	
 	private void callStateChangeCallbacks() {
+		HashSet<IHlsSegmentFileStateChangeCallback> clone = null;
 		synchronized(stateChangeCallbacks) {
-			for(IHlsSegmentFileStateChangeCallback callback : stateChangeCallbacks) {
-				callback.onStateChange(state);
-			}
+			// need to iterate over a clone because something in the callback might call the unregister method
+			// and this would cause a concurrent modification exception
+			clone = new HashSet<>(stateChangeCallbacks);
+		}
+		for(IHlsSegmentFileStateChangeCallback callback : clone) {
+			callback.onStateChange(state);
 		}
 	}
 	

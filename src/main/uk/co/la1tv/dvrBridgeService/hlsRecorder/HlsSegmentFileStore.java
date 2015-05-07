@@ -23,8 +23,8 @@ public class HlsSegmentFileStore {
 	@Autowired
 	private HlsFileGenerator hlsFileGenerator;
 	
-	// Key is the hashCode of the remote url
-	private final HashMap<Integer, HlsSegmentFile> segments = new HashMap<>();
+	// Key is the url object
+	private final HashMap<URL, HlsSegmentFile> segments = new HashMap<>();
 
 	/**
 	 * Get a segment that is/was located at the specified url.
@@ -34,14 +34,13 @@ public class HlsSegmentFileStore {
 	 * @return
 	 */
 	public HlsSegmentFile getSegment(URL remoteUrl) {
-		int hashCode = remoteUrl.hashCode();
-		if (segments.containsKey(hashCode)) {
-			return segments.get(hashCode);
+		if (segments.containsKey(remoteUrl)) {
+			return segments.get(remoteUrl);
 		}
 		File localFile = hlsFileGenerator.generateFile(FileHelper.getExtension(remoteUrl.getFile()));
 		
 		HlsSegmentFile newSegment = context.getBean(HlsSegmentFile.class, remoteUrl, localFile);
-		segments.put(hashCode, newSegment);
+		segments.put(remoteUrl, newSegment);
 		return newSegment;
 	}
 	

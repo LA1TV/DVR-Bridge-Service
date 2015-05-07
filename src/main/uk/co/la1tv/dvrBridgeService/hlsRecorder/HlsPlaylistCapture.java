@@ -60,7 +60,7 @@ public class HlsPlaylistCapture {
 	private Float segmentTargetDuration = null;
 	private final Timer updateTimer = new Timer();
 	private final IPlaylistUpdatedCallback playlistUpdatedCallback;
-	private String generatedPlaylistContent = "";
+	private String generatedPlaylistContent = null;
 	
 	/**
 	 * Create a new object which represents a capture file for a playlist.
@@ -89,6 +89,7 @@ public class HlsPlaylistCapture {
 			captureState = 1;
 			captureStartTime = System.currentTimeMillis();
 			updateTimer.schedule(new UpdateTimerTask(), 0, playlistUpdateInterval);
+			generatePlaylistContent();
 			return true;
 		}
 	}
@@ -104,6 +105,7 @@ public class HlsPlaylistCapture {
 			updateTimer.cancel();
 			updateTimer.purge();
 			captureState = 2;
+			generatePlaylistContent();
 		}
 	}
 	
@@ -193,7 +195,7 @@ public class HlsPlaylistCapture {
 				contents += "#EXT-X-ENDLIST\n";
 			}
 			
-			if (contents.equals(generatedPlaylistContent)) {
+			if (generatedPlaylistContent != null && contents.equals(generatedPlaylistContent)) {
 				// no change
 				return;
 			}
@@ -212,10 +214,11 @@ public class HlsPlaylistCapture {
 	private void retrievePlaylistMetadata() throws PlaylistRequestException {
 		JSONObject info = getPlaylistInfo();
 		JSONObject properties = (JSONObject) info.get("properties");
-		String durationStr = String.valueOf(properties.get("targetDuration"));
-		if (durationStr == null) {
+		Object targetDuration = properties.get("targetDuration");
+		if (targetDuration == null) {
 			throw(new IncompletePlaylistException());
 		}
+		String durationStr = String.valueOf(targetDuration);
 		float duration = Float.valueOf(durationStr);
 		segmentTargetDuration = duration;
 	}
@@ -286,9 +289,8 @@ public class HlsPlaylistCapture {
 				int numSegments = segments.size();
 				Integer lastSequenceNumber = numSegments > 0 ? segments.get(numSegments-1).getSequenceNumber() : null;
 				// the next sequence number will always be one more than the last one as per the specification
-				// if we don't have any segments yet then we will just grab the first segment in the file and
-				// get its sequence number.
-				// TODO this needs improving. If don't have any chunks yet probably only want the last few so starting close to the point when the capture was started. Also the ones at the top of the file should probably be ignored because will be deleted soon
+				// if we don't have any segments yet then we will set this to null which will mean just the newest chunk
+				// will be retrieved
 				Integer nextSequenceNumber = lastSequenceNumber != null ? lastSequenceNumber+1 : null;
 				JSONObject playlistInfo = null;
 				try {
@@ -302,27 +304,40 @@ public class HlsPlaylistCapture {
 				int firstSequenceNumber = Integer.valueOf(String.valueOf(properties.get("mediaSequence")));
 				
 				JSONArray items = extractPlaylistItems(playlistInfo);
-				int seqNum = firstSequenceNumber;
-				for(int i=0; i<items.size(); i++) {
-					if (nextSequenceNumber == null || seqNum >= nextSequenceNumber) {
-						// this is a new item
-						JSONObject item = (JSONObject) items.get(i);
-						JSONObject itemProperties = (JSONObject) item.get("properties");
-						float duration = Float.parseFloat(String.valueOf(itemProperties.get("duration")));
-						boolean discontinuityFlag = itemProperties.get("discontinuity") != null;
-						URL segmentUrl = null;
-						try {
-							segmentUrl = new URL(playlist.getUrl(), String.valueOf(itemProperties.get("uri")));
-						} catch (MalformedURLException e) {
-							throw(new IncompletePlaylistException());
+				if (!items.isEmpty()) {
+					if (nextSequenceNumber != null) {
+						int seqNum = firstSequenceNumber;
+						for(int i=0; i<items.size(); i++) {
+							if (seqNum >= nextSequenceNumber) {
+								// this is a new item
+								addNewSegment((JSONObject) items.get(i), seqNum);
+							}
+							seqNum++;
 						}
-						HlsSegmentFile hlsSegmentFile = hlsSegmentFileStore.getSegment(segmentUrl);
-						hlsSegmentFile.registerStateChangeCallback(new HlsSegmentFileStateChangeHandler(hlsSegmentFile));
-						segments.add(new HlsSegment(hlsSegmentFile, i, duration, discontinuityFlag));
 					}
-					seqNum++;
+					else {
+						// just add the newest segment
+						addNewSegment((JSONObject) items.get(items.size()-1), firstSequenceNumber+items.size()-1);
+					}
 				}
 			}
+		}
+	}
+	
+	private void addNewSegment(JSONObject item, int seqNum) {
+		JSONObject itemProperties = (JSONObject) item.get("properties");
+		float duration = Float.parseFloat(String.valueOf(itemProperties.get("duration")));
+		boolean discontinuityFlag = itemProperties.get("discontinuity") != null;
+		URL segmentUrl = null;
+		try {
+			segmentUrl = new URL(playlist.getUrl(), String.valueOf(itemProperties.get("uri")));
+		} catch (MalformedURLException e) {
+			throw(new IncompletePlaylistException());
+		}
+		HlsSegmentFile hlsSegmentFile = hlsSegmentFileStore.getSegment(segmentUrl);
+		hlsSegmentFile.registerStateChangeCallback(new HlsSegmentFileStateChangeHandler(hlsSegmentFile));
+		synchronized(lock) {
+			segments.add(new HlsSegment(hlsSegmentFile, seqNum, duration, discontinuityFlag));
 		}
 	}
 	
@@ -330,13 +345,20 @@ public class HlsPlaylistCapture {
 		
 		// the HlsSegmentFile that this handler has been set up for
 		private final HlsSegmentFile hlsSegmentFile;
+		private boolean handled = false;
 		
 		public HlsSegmentFileStateChangeHandler(HlsSegmentFile hlsSegmentFile) {
 			this.hlsSegmentFile = hlsSegmentFile;
+			handleStateChange(hlsSegmentFile.getState());
 		}
 		
-		@Override
-		public void onStateChange(HlsSegmentFileState state) {
+		private synchronized void handleStateChange(HlsSegmentFileState state) {
+			if (handled) {
+				// this can happen if the event is fired just as this is already being
+				// handled from the constructor
+				return;
+			}
+			
 			if (state == HlsSegmentFileState.DOWNLOADED) {
 				// regenerate the playlist content.
 				generatePlaylistContent();
@@ -357,6 +379,12 @@ public class HlsPlaylistCapture {
 			// don't care about any more state changes so remove handler
 			// so can be garbage collected
 			hlsSegmentFile.unregisterStateChangeCallback(this);
+			handled = true;
+		}
+		
+		@Override
+		public void onStateChange(HlsSegmentFileState state) {
+			handleStateChange(state);
 		}
 		
 	}

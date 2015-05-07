@@ -36,7 +36,9 @@ public class Application {
     	
     	HlsPlaylistCapture a = null;
 		try {
-			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL("https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8")), new IPlaylistUpdatedCallback() {
+			String url = "http://public.infozen.cshls.lldns.net/infozen/public/public/public_200.m3u8";
+			//url = "https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8";
+			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL(url)), new IPlaylistUpdatedCallback() {
 
 				@Override
 				public void onPlaylistUpdated(HlsPlaylistCapture source) {

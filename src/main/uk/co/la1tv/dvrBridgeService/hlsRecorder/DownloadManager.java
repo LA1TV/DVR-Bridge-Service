@@ -77,7 +77,7 @@ public class DownloadManager {
 			}
 			catch(Exception e) {
 				e.printStackTrace();
-				logger.warn("Download failed for some reaason.");
+				logger.warn("Download failed for some reason.");
 			}
 
 			if (callback != null) {
