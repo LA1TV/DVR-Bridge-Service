@@ -15,7 +15,9 @@ import org.springframework.context.annotation.ComponentScan;
 
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylist;
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylistCapture;
-import uk.co.la1tv.dvrBridgeService.hlsRecorder.IPlaylistUpdatedCallback;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylistCaptureState;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.ICaptureStateChangeListener;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.IPlaylistUpdatedListener;
 
 @ComponentScan
 @EnableAutoConfiguration
@@ -38,25 +40,40 @@ public class Application {
 		try {
 			String url = "http://public.infozen.cshls.lldns.net/infozen/public/public/public_200.m3u8";
 			//url = "https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/gear1/prog_index.m3u8";
-			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL(url)), new IPlaylistUpdatedCallback() {
-				
-				private int count = 0;
-				
-				@Override
-				public void onPlaylistUpdated(HlsPlaylistCapture source, String playlistContent) {
-					System.out.println(playlistContent);
-					if (++count == 3) {
-						System.out.println("Stopping capture.");
-						source.stopCapture();
-						source.deleteCapture();
-					}
-				}
-				
-			});
+			a = context.getBean(HlsPlaylistCapture.class, new HlsPlaylist(new URL(url)));
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		final HlsPlaylistCapture b = a;
+		
+		b.setPlaylistUpdatedListener(new IPlaylistUpdatedListener() {
+			
+			private int count = 0;
+			
+			@Override
+			public void onPlaylistUpdated(String playlistContent) {
+				System.out.println(playlistContent);
+				if (count++ == 3) {
+					System.out.println("Stopping capture.");
+					b.stopCapture();
+					b.deleteCapture();
+				}
+			}
+			
+		});
+		
+		b.setStateChangeListener(new ICaptureStateChangeListener() {
+
+			@Override
+			public void onStateChange(HlsPlaylistCaptureState newState) {
+				System.out.println("STATE CHANGED!");
+			}
+			
+		});
+		
+		
     	a.startCapture();
     }
 }

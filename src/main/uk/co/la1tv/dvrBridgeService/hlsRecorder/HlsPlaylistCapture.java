@@ -52,23 +52,47 @@ public class HlsPlaylistCapture {
 	private final HlsPlaylist playlist;
 	private HlsPlaylistCaptureState captureState = HlsPlaylistCaptureState.NOT_STARTED;
 	private Long captureStartTime = null; // start time in unix time in milliseconds
-	private double captureDuration = 0; // the number of seconds currently captured
 	// the segments that have been downloaded in order
 	private ArrayList<HlsSegment> segments = new ArrayList<>();
 	// the maximum length that a segment can be (milliseconds)
 	// retrieved from the playlist
 	private Float segmentTargetDuration = null;
 	private final Timer updateTimer = new Timer();
-	private final IPlaylistUpdatedCallback playlistUpdatedCallback;
+	private IPlaylistUpdatedListener playlistUpdatedListener = null;
+	private ICaptureStateChangeListener captureStateChangeListener = null;
 	private String generatedPlaylistContent = null;
 	
 	/**
 	 * Create a new object which represents a capture file for a playlist.
 	 * @param playlist The playlist to generate a capture from.
 	 */
-	public HlsPlaylistCapture(HlsPlaylist playlist, IPlaylistUpdatedCallback playlistUpdatedCallback) {
+	public HlsPlaylistCapture(HlsPlaylist playlist) {
 		this.playlist = playlist;
-		this.playlistUpdatedCallback = playlistUpdatedCallback;
+	}
+	
+	/**
+	 * Register a listener to be informed when the generated playlist changes.
+	 * This callback will be in a new thread. (More info in the interface)
+	 * @param playlistUpdatedListener
+	 */
+	public void setPlaylistUpdatedListener(IPlaylistUpdatedListener playlistUpdatedListener) {
+		this.playlistUpdatedListener = playlistUpdatedListener;
+	}
+	
+	/**
+	 * Register a listener to be informed when the capture state changes.
+	 * This callback will be in a new thread. (More info in the interface)
+	 * @param stateChangeListener
+	 */
+	public void setStateChangeListener(ICaptureStateChangeListener stateChangeListener) {
+		this.captureStateChangeListener = stateChangeListener;
+	}
+	
+	private void updateCaptureState(HlsPlaylistCaptureState newState) {
+		synchronized(lock) {
+			captureState = newState;
+			callCaptureStateChangedCallback(newState);
+		}
 	}
 	
 	/**
@@ -86,7 +110,7 @@ public class HlsPlaylistCapture {
 				logger.warn("An error occurred retrieving the playlist so capture could not be started.");
 				return false;
 			}
-			captureState = HlsPlaylistCaptureState.CAPTURING;
+			updateCaptureState(HlsPlaylistCaptureState.CAPTURING);
 			captureStartTime = System.currentTimeMillis();
 			updateTimer.schedule(new UpdateTimerTask(), 0, playlistUpdateInterval);
 			generatePlaylistContent();
@@ -104,7 +128,7 @@ public class HlsPlaylistCapture {
 			}
 			updateTimer.cancel();
 			updateTimer.purge();
-			captureState = HlsPlaylistCaptureState.STOPPED;
+			updateCaptureState(HlsPlaylistCaptureState.STOPPED);
 			generatePlaylistContent();
 		}
 	}
@@ -128,7 +152,7 @@ public class HlsPlaylistCapture {
 					segmentFile.release();
 				}
 			}
-			captureState = HlsPlaylistCaptureState.DELETED;
+			updateCaptureState(HlsPlaylistCaptureState.DELETED);
 		}
 	}
 	
@@ -142,20 +166,6 @@ public class HlsPlaylistCapture {
 				throw(new RuntimeException("Capture not started yet."));
 			}
 			return captureStartTime;
-		}
-	}
-	
-	/**
-	 * Get the duration of the capture (seconds). This is dynamic and will
-	 * update if a capture is currently in progress.
-	 * @return
-	 */
-	public double getCaptureDuration() {
-		synchronized(lock) {
-			if (captureState == HlsPlaylistCaptureState.NOT_STARTED) {
-				throw(new RuntimeException("Capture not started yet."));
-			}
-			return captureDuration;
 		}
 	}
 	
@@ -301,11 +311,24 @@ public class HlsPlaylistCapture {
 	private void callPlaylistUpdatedCallback(final String playlistContent) {
 		// call the callback in a separate thread to prevent issues if actions are performed
 		// in the callback that call other methods like stopCapture()
-		if (playlistUpdatedCallback != null) {
+		if (playlistUpdatedListener != null) {
 			new Thread(new Runnable() {
 				@Override
 				public void run() {
-					playlistUpdatedCallback.onPlaylistUpdated(HlsPlaylistCapture.this, playlistContent);
+					playlistUpdatedListener.onPlaylistUpdated(playlistContent);
+				}
+			}).start();
+		}
+	}
+	
+	private void callCaptureStateChangedCallback(final HlsPlaylistCaptureState captureState) {
+		// call the callback in a separate thread to prevent issues if actions are performed
+		// in the callback that call other methods like stopCapture()
+		if (captureStateChangeListener != null) {
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					captureStateChangeListener.onStateChange(captureState);
 				}
 			}).start();
 		}
