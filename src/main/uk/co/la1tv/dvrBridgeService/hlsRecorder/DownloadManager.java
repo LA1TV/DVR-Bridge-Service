@@ -25,6 +25,9 @@ public class DownloadManager {
 	@Value("${app.numMaxConcurrentDownloads}")
 	private int numMaxConcurrentDownloads;
 	
+	@Value("${app.downloadTimeout}")
+	private int downloadTimeout;
+	
 	private ExecutorService executor = null;
 	
 	@PostConstruct
@@ -47,6 +50,7 @@ public class DownloadManager {
 		private final URL source;
 		private final File destination;
 		private final IHlsSegmentFileDownloadCallback callback;
+		private boolean downloadSucceeded = false;
 		
 		public Downloader(URL source, File destination, IHlsSegmentFileDownloadCallback callback) {
 			this.source = source;
@@ -56,32 +60,52 @@ public class DownloadManager {
 		
 		@Override
 		public void run() {
-			boolean success = false;
 			
 			if (callback != null) {
 				callback.onDownloadStart();
 			}
 			
+			Thread downloadHandlerThread = new Thread(new DownloadHandler());
+			downloadHandlerThread.start();
 			try {
-				logger.debug("Attempting to download \""+source.toExternalForm()+"\" to \""+destination.getAbsolutePath()+"\".");
-				ReadableByteChannel rbc = Channels.newChannel(source.openStream());
-				FileOutputStream fos =  new FileOutputStream(destination);
-				try {
-					fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-				}
-				finally {
-					fos.close();
-				}
-				success = true;
-				logger.debug("Download completed succesfully.");
-			}
-			catch(Exception e) {
+				// wait for the download to complete for a maximum of the timeout in seconds
+				downloadHandlerThread.join(downloadTimeout*1000);
+			} catch (InterruptedException e) {
+				// shouldn't happen
 				e.printStackTrace();
-				logger.warn("Download failed for some reason.");
+			}
+			
+			if (downloadHandlerThread.isAlive()) {
+				// request the thread to terminate as taking too long
+				downloadHandlerThread.interrupt();
 			}
 
 			if (callback != null) {
-				callback.onCompletion(success);
+				callback.onCompletion(downloadSucceeded);
+			}
+		}
+		
+		private class DownloadHandler implements Runnable {
+
+			@Override
+			public void run() {
+				try {
+					logger.debug("Attempting to download \""+source.toExternalForm()+"\" to \""+destination.getAbsolutePath()+"\".");
+					ReadableByteChannel rbc = Channels.newChannel(source.openStream());
+					FileOutputStream fos =  new FileOutputStream(destination);
+					try {
+						fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+					}
+					finally {
+						fos.close();
+					}
+					downloadSucceeded = true;
+					logger.debug("Download completed succesfully.");
+				}
+				catch(Exception e) {
+					e.printStackTrace();
+					logger.warn("Download failed for some reason.");
+				}
 			}
 		}
 		

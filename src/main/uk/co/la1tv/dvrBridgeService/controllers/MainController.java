@@ -21,12 +21,17 @@ public class MainController {
 	}
 	
 	@RequestMapping(value = "/dvrBridgeService", method = RequestMethod.POST)
-	public Object handlePost(@RequestParam("type") String type, @RequestParam("id") long streamId) {
+	public Object handlePost(@RequestParam("type") String type, @RequestParam("id") long streamId,  @RequestParam(value="hlsPlaylistUrl", required=false) String hlsPlaylistUrlStr) {
 		
 		IRequestHandler handler = requestHandlers.getRequestHandlerForType(type);
 		if (handler == null) {
 			throw(new InternalServerErrorException("Unknown type."));
 		}
+		
+		if (hlsPlaylistUrlStr == null) {
+			throw(new InternalServerErrorException("\"hlsPlaylistUrl\" query param is missing and is required."));
+		}
+		
 		return handler.handle(streamId);
 	}
 	

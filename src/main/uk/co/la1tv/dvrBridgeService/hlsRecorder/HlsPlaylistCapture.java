@@ -358,6 +358,7 @@ public class HlsPlaylistCapture {
 				} catch (PlaylistRequestException e) {
 					logger.warn("Error retrieving playlist so capture stopped.");
 					stopCapture();
+					return;
 				}
 				
 				JSONObject properties = (JSONObject) playlistInfo.get("properties");

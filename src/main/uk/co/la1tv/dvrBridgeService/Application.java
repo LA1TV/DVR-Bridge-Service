@@ -55,7 +55,7 @@ public class Application {
 			@Override
 			public void onPlaylistUpdated(String playlistContent) {
 				System.out.println(playlistContent);
-				if (count++ == 3) {
+				if (count++ == 3 && false) {
 					System.out.println("Stopping capture.");
 					b.stopCapture();
 					b.deleteCapture();
