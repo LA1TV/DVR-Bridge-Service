@@ -36,6 +36,11 @@ public class Application {
     public void onPostConstruct() {
     	logger.info("Application loaded!");
     	
+    	
+    	if (true) {
+    		return;
+    	}
+    	
     	HlsPlaylistCapture a = null;
 		try {
 			String url = "http://public.infozen.cshls.lldns.net/infozen/public/public/public_200.m3u8";

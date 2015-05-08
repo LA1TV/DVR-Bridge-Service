@@ -1,5 +1,9 @@
 package uk.co.la1tv.dvrBridgeService.controllers;
 
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -21,18 +25,15 @@ public class MainController {
 	}
 	
 	@RequestMapping(value = "/dvrBridgeService", method = RequestMethod.POST)
-	public Object handlePost(@RequestParam("type") String type, @RequestParam("id") long streamId,  @RequestParam(value="hlsPlaylistUrl", required=false) String hlsPlaylistUrlStr) {
+	public Object handlePost(HttpServletRequest request, @RequestParam("type") String type, @RequestParam("id") long streamId) {
 		
 		IRequestHandler handler = requestHandlers.getRequestHandlerForType(type);
 		if (handler == null) {
 			throw(new InternalServerErrorException("Unknown type."));
 		}
 		
-		if (hlsPlaylistUrlStr == null) {
-			throw(new InternalServerErrorException("\"hlsPlaylistUrl\" query param is missing and is required."));
-		}
-		
-		return handler.handle(streamId);
+		Map<String, String[]> requestParameters = request.getParameterMap();
+		return handler.handle(streamId, requestParameters);
 	}
 	
 	

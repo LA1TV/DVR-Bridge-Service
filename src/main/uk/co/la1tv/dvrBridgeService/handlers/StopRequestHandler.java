@@ -1,5 +1,7 @@
 package uk.co.la1tv.dvrBridgeService.handlers;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Component;
 
 @Component
@@ -11,7 +13,7 @@ public class StopRequestHandler implements IRequestHandler {
 	}
 
 	@Override
-	public Object handle(long streamId) {
+	public Object handle(long streamId, Map<String, String[]> requestParameters) {
 		// TODO Auto-generated method stub
 		return null;
 	}
