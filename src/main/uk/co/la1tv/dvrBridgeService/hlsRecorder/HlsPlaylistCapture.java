@@ -205,25 +205,28 @@ public class HlsPlaylistCapture {
 			
 			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)
 			boolean allSegmentsDownloaded = true;
-			for(HlsSegment segment : segments) {
-				
-				HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
-				if (segmentFile.getState() == HlsSegmentFileState.DOWNLOAD_FAILED) {
-					// can never put anything else in this playlist, because will always be
-					// missing this chunk
-					break;
+			synchronized(lock) {
+				for(HlsSegment segment : segments) {
+					HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
+					// TODO it's failing here
+					HlsSegmentFileState state = segmentFile.getState();
+					if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
+						// can never put anything else in this playlist, because will always be
+						// missing this chunk
+						break;
+					}
+					else if (state != HlsSegmentFileState.DOWNLOADED) {
+						// can't get any more segments until this one has the file downloaded.
+						allSegmentsDownloaded = false;
+						break;
+					}
+					
+					if (segment.getDiscontinuityFlag()) {
+						contents += "#EXT-X-DISCONTINUITY\n";
+					}
+					contents += "#EXTINF:"+segment.getDuration()+",\n";
+					contents += segmentFile.getFileUrl().toExternalForm()+"\n";
 				}
-				else if (segmentFile.getState() != HlsSegmentFileState.DOWNLOADED) {
-					// can't get any more segments until this one has the file downloaded.
-					allSegmentsDownloaded = false;
-					break;
-				}
-				
-				if (segment.getDiscontinuityFlag()) {
-					contents += "#EXT-X-DISCONTINUITY\n";
-				}
-				contents += "#EXTINF:"+segment.getDuration()+",\n";
-				contents += segmentFile.getFileUrl().toExternalForm()+"\n";
 			}
 			
 			if (captureState == HlsPlaylistCaptureState.STOPPED && allSegmentsDownloaded) {
@@ -356,7 +359,7 @@ public class HlsPlaylistCapture {
 				try {
 					playlistInfo = getPlaylistInfo();
 				} catch (PlaylistRequestException e) {
-					logger.warn("Error retrieving playlist so capture stopped.");
+					logger.warn("Error retrieving playlist so stopping capture.");
 					stopCapture();
 					return;
 				}
@@ -365,15 +368,25 @@ public class HlsPlaylistCapture {
 				int firstSequenceNumber = Integer.valueOf(String.valueOf(properties.get("mediaSequence")));
 				
 				JSONArray items = extractPlaylistItems(playlistInfo);
+				// TODO check if not had a new chunk in a while and if that's the case stop the capture.
+				// TODO also check if has the end tag and if it has end the capture immediately
 				if (!items.isEmpty()) {
 					if (nextSequenceNumber != null) {
-						int seqNum = firstSequenceNumber;
-						for(int i=0; i<items.size(); i++) {
-							if (seqNum >= nextSequenceNumber) {
-								// this is a new item
-								addNewSegment((JSONObject) items.get(i), seqNum);
+						if (firstSequenceNumber > nextSequenceNumber) {
+							// the next chunk we want has left the playlist already
+							// stop the capture
+							logger.warn("Next chunk has already left remote playlist so stopping capture.");
+							stopCapture();
+						}
+						else {
+							int seqNum = firstSequenceNumber;
+							for(int i=0; i<items.size(); i++) {
+								if (seqNum >= nextSequenceNumber) {
+									// this is a new item
+									addNewSegment((JSONObject) items.get(i), seqNum);
+								}
+								seqNum++;
 							}
-							seqNum++;
 						}
 					}
 					else {
@@ -402,7 +415,7 @@ public class HlsPlaylistCapture {
 		}
 	}
 	
-	private class HlsSegmentFileStateChangeHandler implements IHlsSegmentFileStateChangeCallback {
+	private class HlsSegmentFileStateChangeHandler implements IHlsSegmentFileStateChangeListener {
 		
 		// the HlsSegmentFile that this handler has been set up for
 		private final HlsSegmentFileProxy hlsSegmentFile;
@@ -421,7 +434,6 @@ public class HlsPlaylistCapture {
 			}
 			
 			synchronized(lock) {
-
 				if (captureState == HlsPlaylistCaptureState.DELETED) {
 					// if the capture has gone into the deleted state then the
 					// file will have already been released.

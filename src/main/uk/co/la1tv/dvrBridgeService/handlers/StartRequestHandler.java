@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylist;
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylistCapture;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.HlsPlaylistCaptureState;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.ICaptureStateChangeListener;
+import uk.co.la1tv.dvrBridgeService.hlsRecorder.IPlaylistUpdatedListener;
 import uk.co.la1tv.dvrBridgeService.httpExceptions.InternalServerErrorException;
 
 @Component
@@ -41,6 +44,30 @@ public class StartRequestHandler implements IRequestHandler {
 		
 		HlsPlaylist hlsPlaylist = context.getBean(HlsPlaylist.class, hlsPlaylistUrl);
 		HlsPlaylistCapture hlsPlaylistCapture = context.getBean(HlsPlaylistCapture.class, hlsPlaylist);
+		
+		
+		// TODO temp, remove
+		hlsPlaylistCapture.setPlaylistUpdatedListener(new IPlaylistUpdatedListener() {
+			
+			private int count = 0;
+			
+			@Override
+			public void onPlaylistUpdated(String playlistContent) {
+				System.out.println("playlist update");
+			}
+			
+		});
+		
+		hlsPlaylistCapture.setStateChangeListener(new ICaptureStateChangeListener() {
+
+			@Override
+			public void onStateChange(HlsPlaylistCaptureState newState) {
+				System.out.println("STATE CHANGED! "+newState.toString());
+			}
+			
+		});
+		
+		
 		hlsPlaylistCapture.startCapture();
 		
 		return null;

@@ -32,7 +32,7 @@ public class HlsSegmentFile {
 	private final URL remoteUrl; // the url that this segment was located at
 	private final File localFile; // the local location
 	private HlsSegmentFileState state = HlsSegmentFileState.DOWNLOAD_PENDING;
-	private HashSet<IHlsSegmentFileStateChangeCallback> stateChangeCallbacks = new HashSet<>();
+	private HashSet<IHlsSegmentFileStateChangeListener> stateChangeCallbacks = new HashSet<>();
 
 	// the number of proxies that are wanting to access to the file
 	private int numProxiesAccessingFile = 0;
@@ -62,7 +62,9 @@ public class HlsSegmentFile {
 	}
 
 	public HlsSegmentFileState getState() {
-		return state;
+		synchronized(lock) {
+			return state;
+		}
 	}
 	
 	public File getFile() {
@@ -89,13 +91,13 @@ public class HlsSegmentFile {
 		}
 	}
 	
-	public boolean registerStateChangeCallback(IHlsSegmentFileStateChangeCallback callback) {
+	public boolean registerStateChangeCallback(IHlsSegmentFileStateChangeListener callback) {
 		synchronized(stateChangeCallbacks) {
 			return stateChangeCallbacks.add(callback);
 		}
 	}
 	
-	public boolean unregisterStateChangeCallback(IHlsSegmentFileStateChangeCallback callback) {
+	public boolean unregisterStateChangeCallback(IHlsSegmentFileStateChangeListener callback) {
 		synchronized(stateChangeCallbacks) {
 			return stateChangeCallbacks.remove(callback);
 		}
@@ -140,25 +142,23 @@ public class HlsSegmentFile {
 		return numProxiesAccessingFile;
 	}
 	
-	private void callStateChangeCallbacks() {
-		HashSet<IHlsSegmentFileStateChangeCallback> clone = null;
+	private void callStateChangeCallbacks(HlsSegmentFileState newState) {
+		HashSet<IHlsSegmentFileStateChangeListener> clone = null;
 		synchronized(stateChangeCallbacks) {
 			// need to iterate over a clone because something in the callback might call the unregister method
 			// and this would cause a concurrent modification exception
 			clone = new HashSet<>(stateChangeCallbacks);
 		}
-		synchronized(lock) {
-			for(IHlsSegmentFileStateChangeCallback callback : clone) {
-				callback.onStateChange(state);
-			}
+		for(IHlsSegmentFileStateChangeListener callback : clone) {
+			callback.onStateChange(newState);
 		}
 	}
 	
 	private void updateState(HlsSegmentFileState state) {
 		synchronized(lock) {
 			this.state = state;
-			callStateChangeCallbacks();
 		}
+		callStateChangeCallbacks(state);
 	}
 	
 	/**

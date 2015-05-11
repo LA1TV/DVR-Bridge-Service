@@ -20,7 +20,7 @@ public class HlsSegmentFileProxy {
 	private final HlsSegmentFile hlsSegmentFile;
 	private boolean released = false;
 	
-	private HashSet<IHlsSegmentFileStateChangeCallback> callbacks = new HashSet<>();
+	private HashSet<IHlsSegmentFileStateChangeListener> callbacks = new HashSet<>();
 
 	public HlsSegmentFileProxy(HlsSegmentFile hlsSegmentFile) {
 		hlsSegmentFile.onProxyCreated();
@@ -55,7 +55,7 @@ public class HlsSegmentFileProxy {
 		}
 	}
 	
-	public boolean registerStateChangeCallback(IHlsSegmentFileStateChangeCallback callback) {
+	public boolean registerStateChangeCallback(IHlsSegmentFileStateChangeListener callback) {
 		synchronized(lock) {
 			checkReleased();
 			callbacks.add(callback);
@@ -63,7 +63,7 @@ public class HlsSegmentFileProxy {
 		}
 	}
 	
-	public boolean unregisterStateChangeCallback(IHlsSegmentFileStateChangeCallback callback) {
+	public boolean unregisterStateChangeCallback(IHlsSegmentFileStateChangeListener callback) {
 		synchronized(lock) {
 			checkReleased();
 			callbacks.remove(callback);
@@ -78,7 +78,7 @@ public class HlsSegmentFileProxy {
 		synchronized(lock) {
 			checkReleased();
 			// unregister any callbacks that have been registered
-			for (IHlsSegmentFileStateChangeCallback callback : callbacks) {
+			for (IHlsSegmentFileStateChangeListener callback : callbacks) {
 				hlsSegmentFile.unregisterStateChangeCallback(callback);
 			}
 			callbacks.clear();
