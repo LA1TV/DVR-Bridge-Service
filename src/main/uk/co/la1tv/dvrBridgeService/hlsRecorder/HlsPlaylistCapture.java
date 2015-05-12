@@ -61,6 +61,8 @@ public class HlsPlaylistCapture {
 	private IPlaylistUpdatedListener playlistUpdatedListener = null;
 	private ICaptureStateChangeListener captureStateChangeListener = null;
 	private String generatedPlaylistContent = null;
+	// the unix time when the next chunk is expected by
+	private Long nextChunkExpectedTime = null;
 	
 	/**
 	 * Create a new object which represents a capture file for a playlist.
@@ -208,7 +210,6 @@ public class HlsPlaylistCapture {
 			synchronized(lock) {
 				for(HlsSegment segment : segments) {
 					HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
-					// TODO it's failing here
 					HlsSegmentFileState state = segmentFile.getState();
 					if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
 						// can never put anything else in this playlist, because will always be
@@ -349,6 +350,14 @@ public class HlsPlaylistCapture {
 					return;
 				}
 				
+				if (nextChunkExpectedTime != null && nextChunkExpectedTime < System.currentTimeMillis() - 10000) {
+					// should have had next chunk by now
+					// stop capture
+					logger.warn("Stopping capture because there should have been another chunk available by now.");
+					stopCapture();
+					return;
+				}
+				
 				int numSegments = segments.size();
 				Integer lastSequenceNumber = numSegments > 0 ? segments.get(numSegments-1).getSequenceNumber() : null;
 				// the next sequence number will always be one more than the last one as per the specification
@@ -368,8 +377,6 @@ public class HlsPlaylistCapture {
 				int firstSequenceNumber = Integer.valueOf(String.valueOf(properties.get("mediaSequence")));
 				
 				JSONArray items = extractPlaylistItems(playlistInfo);
-				// TODO check if not had a new chunk in a while and if that's the case stop the capture.
-				// TODO also check if has the end tag and if it has end the capture immediately
 				if (!items.isEmpty()) {
 					if (nextSequenceNumber != null) {
 						if (firstSequenceNumber > nextSequenceNumber) {
@@ -393,6 +400,8 @@ public class HlsPlaylistCapture {
 						// just add the newest segment
 						addNewSegment((JSONObject) items.get(items.size()-1), firstSequenceNumber+items.size()-1);
 					}
+					// calculate the time when we should have the next chunk by
+					nextChunkExpectedTime = System.currentTimeMillis() + Math.round(segments.get(segments.size()-1).getDuration());
 				}
 			}
 		}
