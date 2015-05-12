@@ -39,6 +39,8 @@ public class StreamManager {
 					logger.error("A capture that already existed could not be deleted for some reason.");
 					return null;
 				}
+				// make sure it can be garbage collected
+				siteStream.setCaptureRemovedListener(null);
 				siteStreams.remove(id);
 			}
 			
@@ -51,7 +53,7 @@ public class StreamManager {
 				@Override
 				public void onCaptureRemoved() {
 					synchronized(siteStreams) {
-						// remove streams when their captures are removed
+						// remove stream when it's capture is removed
 						siteStreams.remove(id, newSiteStream);
 					}
 				}

@@ -315,11 +315,12 @@ public class HlsPlaylistCapture {
 	private void callPlaylistUpdatedCallback(final String playlistContent) {
 		// call the callback in a separate thread to prevent issues if actions are performed
 		// in the callback that call other methods like stopCapture()
-		if (playlistUpdatedListener != null) {
+		final IPlaylistUpdatedListener listener = playlistUpdatedListener;
+		if (listener != null) {
 			new Thread(new Runnable() {
 				@Override
 				public void run() {
-					playlistUpdatedListener.onPlaylistUpdated(playlistContent);
+					listener.onPlaylistUpdated(playlistContent);
 				}
 			}).start();
 		}
@@ -328,11 +329,12 @@ public class HlsPlaylistCapture {
 	private void callCaptureStateChangedCallback(final HlsPlaylistCaptureState captureState) {
 		// call the callback in a separate thread to prevent issues if actions are performed
 		// in the callback that call other methods like stopCapture()
-		if (captureStateChangeListener != null) {
+		final ICaptureStateChangeListener listener = captureStateChangeListener;
+		if (listener != null) {
 			new Thread(new Runnable() {
 				@Override
 				public void run() {
-					captureStateChangeListener.onStateChange(captureState);
+					listener.onStateChange(captureState);
 				}
 			}).start();
 		}

@@ -63,7 +63,6 @@ public class SiteStream {
 	@PostConstruct
 	private void onPostConstruct() {
 		hlsPlaylist = context.getBean(HlsPlaylist.class, sourcePlaylistUrl);
-		generateHlsPlaylistCapture();
 	}
 
 	/**
@@ -109,6 +108,9 @@ public class SiteStream {
 	 */
 	private void generateHlsPlaylistCapture() {
 		synchronized(lock) {
+			if (capture != null) {
+				throw(new RuntimeException("HlsPlaylistCapture object already exists."));
+			}
 			ServableFile file = fileGenerator.generateServableFile("m3u8");
 			generatedPlaylistFile = file;
 			PlaylistFileGenerator playlistFileGenerator = new PlaylistFileGenerator(file);
@@ -145,6 +147,20 @@ public class SiteStream {
 	}
 	
 	/**
+	 * Remove the HlsPlaylistCapture object and remove listeners so it can be garbage collected.
+	 */
+	private void removeHlsPlaylistCapture() {
+		synchronized(lock) {
+			if (capture == null) {
+				throw(new RuntimeException("HlsPlaylistCapture object does not exist."));
+			}
+			capture.setStateChangeListener(null);
+			capture.setPlaylistUpdatedListener(null);
+			capture = null;
+		}
+	}
+	
+	/**
 	 * Get the id that the site has assigned to this stream.
 	 * @return
 	 */
@@ -157,13 +173,18 @@ public class SiteStream {
 	 * Returns true on success or false on a failure.
 	 */
 	public boolean startCapture() {
+		generateHlsPlaylistCapture();
+		boolean success = false;
 		try {
-			return capture.startCapture();
+			success = capture.startCapture();
 		}
 		catch(Exception e) {
 			e.printStackTrace();
-			return false;
 		}
+		if (!success) {
+			removeHlsPlaylistCapture();
+		}
+		return success;
 	}
 	
 	/**
@@ -202,6 +223,7 @@ public class SiteStream {
 				}
 			}
 			capture.deleteCapture();
+			removeHlsPlaylistCapture();
 			return true;
 		}
 		catch(Exception e) {
