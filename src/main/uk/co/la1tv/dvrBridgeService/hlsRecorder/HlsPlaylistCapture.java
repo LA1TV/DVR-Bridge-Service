@@ -372,7 +372,6 @@ public class HlsPlaylistCapture {
 				// TODO also check if has the end tag and if it has end the capture immediately
 				if (!items.isEmpty()) {
 					if (nextSequenceNumber != null) {
-						System.out.println(new Integer((int) Math.ceil(System.currentTimeMillis()/1000))+" Looking at playlist.");
 						if (firstSequenceNumber > nextSequenceNumber) {
 							// the next chunk we want has left the playlist already
 							// stop the capture
