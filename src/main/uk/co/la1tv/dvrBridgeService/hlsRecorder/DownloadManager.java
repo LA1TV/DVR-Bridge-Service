@@ -77,6 +77,7 @@ public class DownloadManager {
 			
 			if (downloadHandlerThread.isAlive()) {
 				// request the thread to terminate as taking too long
+				logger.warn("Timing out a download because it is taking too long.");
 				downloadHandlerThread.interrupt();
 			}
 
@@ -92,7 +93,7 @@ public class DownloadManager {
 				try {
 					logger.debug("Attempting to download \""+source.toExternalForm()+"\" to \""+destination.getAbsolutePath()+"\".");
 					ReadableByteChannel rbc = Channels.newChannel(source.openStream());
-					FileOutputStream fos =  new FileOutputStream(destination);
+					FileOutputStream fos = new FileOutputStream(destination);
 					try {
 						fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 					}

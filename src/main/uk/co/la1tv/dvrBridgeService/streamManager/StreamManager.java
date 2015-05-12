@@ -1,4 +1,4 @@
-package uk.co.la1tv.dvrBridgeService.mediaItemStreamManager;
+package uk.co.la1tv.dvrBridgeService.streamManager;
 
 import org.springframework.stereotype.Service;
 

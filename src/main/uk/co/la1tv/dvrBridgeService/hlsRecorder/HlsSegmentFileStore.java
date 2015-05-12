@@ -1,6 +1,5 @@
 package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 
-import java.io.File;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Timer;
@@ -15,6 +14,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
+import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFile;
+import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFileGenerator;
 
 /**
  * Holds references to all of the segment files that have been downloaded
@@ -29,7 +30,7 @@ public class HlsSegmentFileStore {
 	private ApplicationContext context;
 	
 	@Autowired
-	private HlsFileGenerator hlsFileGenerator;
+	private ServableFileGenerator hlsFileGenerator;
 	
 	// Key is the url object
 	private final HashMap<URL, HlsSegmentFile> segments = new HashMap<>();
@@ -59,7 +60,7 @@ public class HlsSegmentFileStore {
 			if (segments.containsKey(remoteUrl)) {
 				return createProxy(segments.get(remoteUrl));
 			}
-			File localFile = hlsFileGenerator.generateFile(FileHelper.getExtension(remoteUrl.getFile()));
+			ServableFile localFile = hlsFileGenerator.generateServableFile(FileHelper.getExtension(remoteUrl.getFile()));
 			HlsSegmentFile newSegment = context.getBean(HlsSegmentFile.class, remoteUrl, localFile);
 			segments.put(remoteUrl, newSegment);
 			HlsSegmentFileProxy newSegmentProxy = createProxy(newSegment);
