@@ -23,7 +23,7 @@ public class StopRequestHandler implements IRequestHandler {
 	@Override
 	public Object handle(long streamId, Map<String, String[]> requestParameters) {
 		SiteStream stream = streamManager.getStream(streamId);
-		if (!stream.stopCapture()) {
+		if (stream == null || !stream.stopCapture()) {
 			throw(new InternalServerErrorException("Unable to stop the capture for some reason."));
 		}
 		return null;

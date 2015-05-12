@@ -28,7 +28,13 @@ public class StreamManager {
 	public SiteStream getStream(final long id, URL remoteHlsPlaylistUrl) {
 		synchronized(siteStreams) {
 			SiteStream siteStream = siteStreams.get(id);
-			if (siteStream == null) {
+			if (siteStream == null || siteStream.captureDeleted()) {
+				if (siteStream != null) {
+					// the capture has been deleted, meaning it can no longer be used,
+					// and the onCaptureRemoved callback will be getting called on it
+					// very shortly anyway. So remove it now and create a new one
+					siteStreams.remove(id);
+				}
 				siteStream = context.getBean(SiteStream.class, id, remoteHlsPlaylistUrl);
 				siteStream.setCaptureRemovedListener(new ISiteStreamCaptureRemovedListener() {
 					@Override

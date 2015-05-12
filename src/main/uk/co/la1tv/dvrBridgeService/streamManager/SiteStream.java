@@ -25,6 +25,9 @@ import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFileGenerator;
 
 /**
  * Represents a stream on the site.
+ * The capture can be start, stopped and removed from here. Once a capture has been
+ * removed a new instance of this will need to be retrieved from the StreamManager
+ * before a capture can be started again.
  */
 @Component
 @Scope("prototype")
@@ -38,6 +41,8 @@ public class SiteStream {
 	@Autowired
 	private ServableFileGenerator fileGenerator;
 	
+	private final Object lock = new Object();
+	
 	// unique id for this stream provided by site
 	private final long siteStreamId;
 	private final URL sourcePlaylistUrl;
@@ -45,6 +50,7 @@ public class SiteStream {
 	private HlsPlaylistCapture capture = null;
 	private ServableFile generatedPlaylistFile = null;
 	private ISiteStreamCaptureRemovedListener captureRemovedListener = null;
+	private boolean requestedStop = false;
 	
 	public SiteStream(long id, URL sourcePlaylistUrl) {
 		this.siteStreamId = id;
@@ -56,49 +62,95 @@ public class SiteStream {
 		hlsPlaylist = context.getBean(HlsPlaylist.class, sourcePlaylistUrl);
 		generateHlsPlaylistCapture();
 	}
-	
+
+	/**
+	 * Set the listener to be informed when the capture is deleted.
+	 * @param captureRemovedListener
+	 */
 	public void setCaptureRemovedListener(ISiteStreamCaptureRemovedListener captureRemovedListener) {
 		this.captureRemovedListener = captureRemovedListener;
+	}
+	
+	/**
+	 * Determine if this stream has a capture.
+	 * This may be a capture in progress or a finished capture.
+	 * @return
+	 */
+	public boolean hasCapture() {
+		synchronized(lock) {
+			HlsPlaylistCaptureState state = capture.getCaptureState();
+			return capture != null && (state == HlsPlaylistCaptureState.CAPTURING || state == HlsPlaylistCaptureState.STOPPED);
+		}
+	}
+	
+	/**
+	 * Determine if the capture has been deleted.
+	 * @return
+	 */
+	public boolean captureDeleted() {
+		synchronized(lock) {
+			return capture != null && capture.getCaptureState() == HlsPlaylistCaptureState.DELETED;
+		}
 	}
 	
 	/**
 	 * Generate a new capture. If there is already a capture delete it,
 	 * then setup a new one.
 	 */
-	private synchronized void generateHlsPlaylistCapture() {
-		if (capture != null) {
-			switch(capture.getCaptureState()) {
-			case NOT_STARTED:
-				// no need to create a new one
-				return;
-			case CAPTURING:
-				capture.stopCapture();
-			case STOPPED:
-				capture.deleteCapture();
-			case DELETED:
-			default:
-				break;
-			}
-		}
-		ServableFile file = fileGenerator.generateServableFile("m3u8");
-		generatedPlaylistFile = file;
-		PlaylistFileGenerator playlistFileGenerator = new PlaylistFileGenerator(file);
-		capture = context.getBean(HlsPlaylistCapture.class, hlsPlaylist);
-		capture.setStateChangeListener(new ICaptureStateChangeListener() {
-
-			@Override
-			public void onStateChange(HlsPlaylistCaptureState newState) {
-				if (newState == HlsPlaylistCaptureState.DELETED) {
-					// delete the generated playlist file and call the capture removed callback
+	private void generateHlsPlaylistCapture() {
+		synchronized(lock) {
+			if (capture != null) {
+				switch(capture.getCaptureState()) {
+				case NOT_STARTED:
+					// no need to create a new one
+					return;
+				case CAPTURING:
+					capture.setStateChangeListener(null);
+					capture.stopCapture();
+				case STOPPED:
+					capture.setStateChangeListener(null);
+					capture.deleteCapture();
 					generatedPlaylistFile.delete();
-					if (captureRemovedListener != null) {
-						captureRemovedListener.onCaptureRemoved();
-					}
+					break;
+				case DELETED:
+					throw(new RuntimeException("This capture has been deleted. You need to get another instance from StreamManager."));
+				default:
+					break;
 				}
 			}
-			
-		});
-		capture.setPlaylistUpdatedListener(playlistFileGenerator);
+			ServableFile file = fileGenerator.generateServableFile("m3u8");
+			generatedPlaylistFile = file;
+			PlaylistFileGenerator playlistFileGenerator = new PlaylistFileGenerator(file);
+			capture = context.getBean(HlsPlaylistCapture.class, hlsPlaylist);
+			capture.setStateChangeListener(new ICaptureStateChangeListener() {
+	
+				@Override
+				public void onStateChange(HlsPlaylistCaptureState newState) {
+					if (newState == HlsPlaylistCaptureState.DELETED) {
+						// delete the generated playlist file and call the capture removed callback
+						generatedPlaylistFile.delete();
+						if (captureRemovedListener != null) {
+							captureRemovedListener.onCaptureRemoved();
+						}
+					}
+					else if (newState == HlsPlaylistCaptureState.STOPPED) {
+						if (!requestedStop) {
+							// this is a stop due to an error.
+							// delete the capture
+							try {
+								capture.deleteCapture();
+							}
+							catch(Exception e) {
+								e.printStackTrace();
+								logger.warn("Error trying to delete capture after it was stopped unexpectadly.");
+							}
+						}
+					}
+				}
+				
+			});
+			capture.setPlaylistUpdatedListener(playlistFileGenerator);
+		}
 	}
 	
 	/**
@@ -129,22 +181,36 @@ public class SiteStream {
 	 * Returns true on success or false on a failure.
 	 */
 	public boolean stopCapture() {
+		return stopCaptureImpl();
+	}
+	
+	private synchronized boolean stopCaptureImpl() {
 		try {
+			requestedStop = true;
 			capture.stopCapture();
 			return true;
 		}
 		catch(Exception e) {
 			e.printStackTrace();
+			requestedStop = false;
 			return false;
 		}
 	}
 	
 	/**
-	 * Remove the capture for this item from the server.
+	 * Remove the capture for this item from the server,
+	 * and stop the recording if one is taking place.
 	 * Returns true on success or false on a failure.
 	 */
 	public boolean removeCapture() {
 		try {
+			if (capture.getCaptureState() == HlsPlaylistCaptureState.CAPTURING) {
+				// currently capturing.
+				// stop capture first
+				if (!stopCaptureImpl()) {
+					return false;
+				}
+			}
 			capture.deleteCapture();
 			return true;
 		}

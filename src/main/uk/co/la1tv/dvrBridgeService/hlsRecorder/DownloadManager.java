@@ -106,6 +106,7 @@ public class DownloadManager {
 				catch(Exception e) {
 					e.printStackTrace();
 					logger.warn("Download failed for some reason.");
+					destination.delete();
 				}
 			}
 		}
