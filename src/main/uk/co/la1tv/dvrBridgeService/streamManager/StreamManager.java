@@ -3,6 +3,7 @@ package uk.co.la1tv.dvrBridgeService.streamManager;
 import java.net.URL;
 import java.util.HashMap;
 
+import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
@@ -13,42 +14,50 @@ import org.springframework.stereotype.Service;
 @Service
 public class StreamManager {
 	
+	private static Logger logger = Logger.getLogger(StreamManager.class);
+	
 	@Autowired
 	private ApplicationContext context;
 	
 	private final HashMap<Long, SiteStream> siteStreams = new HashMap<>();
 	
 	/**
-	 * Get reference to the stream with the corresponding id.
-	 * A new stream object is created with the provided url if it doesn't exist.
+	 * Creates a stream and returns a reference to it. The capture will be started.
+	 * If the stream already exists the capture will be restarted.
+	 * Returns null if there was an error.
 	 * @param id
 	 * @param remoteHlsPlaylistUrl
 	 * @return
 	 */
-	public SiteStream getStream(final long id, URL remoteHlsPlaylistUrl) {
+	public SiteStream createStream(final long id, URL remoteHlsPlaylistUrl) {
 		synchronized(siteStreams) {
 			SiteStream siteStream = siteStreams.get(id);
-			if (siteStream == null || siteStream.captureDeleted()) {
-				if (siteStream != null) {
-					// the capture has been deleted, meaning it can no longer be used,
-					// and the onCaptureRemoved callback will be getting called on it
-					// very shortly anyway. So remove it now and create a new one
-					siteStreams.remove(id);
+			if (siteStream != null) {
+				// already exists. remove the capture and then remove from hashmap
+				// when onCaptureRemoved() called it will have no effect
+				if (!siteStream.removeCapture()) {
+					logger.error("A capture that already existed could not be deleted for some reason.");
+					return null;
 				}
-				siteStream = context.getBean(SiteStream.class, id, remoteHlsPlaylistUrl);
-				siteStream.setCaptureRemovedListener(new ISiteStreamCaptureRemovedListener() {
-					@Override
-					public void onCaptureRemoved() {
-						synchronized(siteStreams) {
-							// remove streams when their captures are removed
-							siteStreams.remove(id);
-						}
-					}
-					
-				});
-				siteStreams.put(id, siteStream);
+				siteStreams.remove(id);
 			}
-			return siteStream;
+			
+			final SiteStream newSiteStream = context.getBean(SiteStream.class, id, remoteHlsPlaylistUrl);
+			if (!newSiteStream.startCapture()) {
+				logger.warn("An error occurred when trying to start a stream capture.");
+				return null;
+			}
+			newSiteStream.setCaptureRemovedListener(new ISiteStreamCaptureRemovedListener() {
+				@Override
+				public void onCaptureRemoved() {
+					synchronized(siteStreams) {
+						// remove streams when their captures are removed
+						siteStreams.remove(id, newSiteStream);
+					}
+				}
+			});
+			siteStreams.put(id, newSiteStream);
+			return newSiteStream;
 		}
 	}
 	

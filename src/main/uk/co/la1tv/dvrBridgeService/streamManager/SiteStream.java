@@ -23,11 +23,13 @@ import uk.co.la1tv.dvrBridgeService.hlsRecorder.IPlaylistUpdatedListener;
 import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFile;
 import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFileGenerator;
 
+// TODO need to register pings and if haven't had one in more than a certain amount of time delete the capture
+
+
 /**
  * Represents a stream on the site.
- * The capture can be start, stopped and removed from here. Once a capture has been
- * removed a new instance of this will need to be retrieved from the StreamManager
- * before a capture can be started again.
+ * The capture can be start, stopped and removed from here.
+ * Operations must occur in that order and can only occur once.
  */
 @Component
 @Scope("prototype")
@@ -51,6 +53,7 @@ public class SiteStream {
 	private ServableFile generatedPlaylistFile = null;
 	private ISiteStreamCaptureRemovedListener captureRemovedListener = null;
 	private boolean requestedStop = false;
+	private long lastActivity = System.currentTimeMillis();
 	
 	public SiteStream(long id, URL sourcePlaylistUrl) {
 		this.siteStreamId = id;
@@ -94,30 +97,18 @@ public class SiteStream {
 	}
 	
 	/**
-	 * Generate a new capture. If there is already a capture delete it,
-	 * then setup a new one.
+	 * Register activity. If the configurable timeout passes inbetween calls to this then
+	 * the capture will be deleted.
+	 */
+	public void registerActivity() {
+		lastActivity = System.currentTimeMillis();
+	}
+	
+	/**
+	 * Generate a new capture.
 	 */
 	private void generateHlsPlaylistCapture() {
 		synchronized(lock) {
-			if (capture != null) {
-				switch(capture.getCaptureState()) {
-				case NOT_STARTED:
-					// no need to create a new one
-					return;
-				case CAPTURING:
-					capture.setStateChangeListener(null);
-					capture.stopCapture();
-				case STOPPED:
-					capture.setStateChangeListener(null);
-					capture.deleteCapture();
-					generatedPlaylistFile.delete();
-					break;
-				case DELETED:
-					throw(new RuntimeException("This capture has been deleted. You need to get another instance from StreamManager."));
-				default:
-					break;
-				}
-			}
 			ServableFile file = fileGenerator.generateServableFile("m3u8");
 			generatedPlaylistFile = file;
 			PlaylistFileGenerator playlistFileGenerator = new PlaylistFileGenerator(file);
@@ -167,7 +158,6 @@ public class SiteStream {
 	 */
 	public boolean startCapture() {
 		try {
-			generateHlsPlaylistCapture();
 			return capture.startCapture();
 		}
 		catch(Exception e) {

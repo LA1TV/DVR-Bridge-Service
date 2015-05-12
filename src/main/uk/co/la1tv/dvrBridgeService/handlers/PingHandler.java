@@ -26,6 +26,7 @@ public class PingHandler implements IRequestHandler {
 		if (stream == null || !stream.hasCapture()) {
 			throw(new InternalServerErrorException("Unable find stream or stream doesn't have capture."));
 		}
+		stream.registerActivity();
 		return null;
 	}
 

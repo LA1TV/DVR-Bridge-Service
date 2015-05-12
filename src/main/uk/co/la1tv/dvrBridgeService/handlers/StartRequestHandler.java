@@ -37,8 +37,8 @@ public class StartRequestHandler implements IRequestHandler {
 		} catch (MalformedURLException e) {
 			throw(new InternalServerErrorException("The provided hls playlist url is invalid."));
 		}
-		SiteStream stream = streamManager.getStream(streamId, hlsPlaylistUrl);
-		if (!stream.startCapture()) {
+		SiteStream stream = streamManager.createStream(streamId, hlsPlaylistUrl);
+		if (stream == null) {
 			throw(new InternalServerErrorException("Unable to start capture for some reason."));
 		}
 		return null;
