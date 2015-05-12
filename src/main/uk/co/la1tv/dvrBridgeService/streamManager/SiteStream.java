@@ -173,16 +173,18 @@ public class SiteStream {
 	 * Returns true on success or false on a failure.
 	 */
 	public boolean startCapture() {
-		generateHlsPlaylistCapture();
 		boolean success = false;
-		try {
-			success = capture.startCapture();
-		}
-		catch(Exception e) {
-			e.printStackTrace();
-		}
-		if (!success) {
-			removeHlsPlaylistCapture();
+		synchronized(lock) {
+			generateHlsPlaylistCapture();
+			try {
+				success = capture.startCapture();
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+			}
+			if (!success) {
+				removeHlsPlaylistCapture();
+			}
 		}
 		return success;
 	}
