@@ -6,11 +6,14 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import javax.annotation.PostConstruct;
 
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -43,6 +46,10 @@ public class SiteStream {
 	@Autowired
 	private ServableFileGenerator fileGenerator;
 	
+	@Value("${app.inactivityTimeLimit}")
+	// time (seconds) that registerActivity calls must be received in 
+	private int inactivityTimeLimit;
+	
 	private final Object lock = new Object();
 	
 	// unique id for this stream provided by site
@@ -54,6 +61,7 @@ public class SiteStream {
 	private ISiteStreamCaptureRemovedListener captureRemovedListener = null;
 	private boolean requestedStop = false;
 	private long lastActivity = System.currentTimeMillis();
+	private Timer inactivityTimer = null;
 	
 	public SiteStream(long id, URL sourcePlaylistUrl) {
 		this.siteStreamId = id;
@@ -120,6 +128,8 @@ public class SiteStream {
 				@Override
 				public void onStateChange(HlsPlaylistCaptureState newState) {
 					if (newState == HlsPlaylistCaptureState.DELETED) {
+						inactivityTimer.cancel();
+						inactivityTimer.purge();
 						// delete the generated playlist file and call the capture removed callback
 						generatedPlaylistFile.delete();
 						if (captureRemovedListener != null) {
@@ -184,6 +194,11 @@ public class SiteStream {
 			}
 			if (!success) {
 				removeHlsPlaylistCapture();
+			}
+			else {
+				inactivityTimer = new Timer();
+				lastActivity = System.currentTimeMillis();
+				inactivityTimer.schedule(new InactivityCheckerTask(), 1000, 1000);
 			}
 		}
 		return success;
@@ -262,6 +277,27 @@ public class SiteStream {
 			} catch (IOException e) {
 				e.printStackTrace();
 				logger.error("Error when trying to write generated playlist file.");
+			}
+		}
+		
+	}
+	
+	private class InactivityCheckerTask extends TimerTask {
+
+		@Override
+		public void run() {
+			if (inactivityTimeLimit == 0) {
+				// disabled
+				return;
+			}
+			else if (lastActivity + (inactivityTimeLimit*1000) < System.currentTimeMillis()) {
+				// not had a registerActivity call recent enough. stop the capture.
+				// this should also cause it to get deleted as it wasn't stopped
+				// with the requestedStop flag set
+				if (capture.getCaptureState() == HlsPlaylistCaptureState.CAPTURING) {
+					logger.warn("Stopping capture because activity hasn't been registered in too long.");
+					capture.stopCapture();
+				}
 			}
 		}
 		
