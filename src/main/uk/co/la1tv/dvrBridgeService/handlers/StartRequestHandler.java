@@ -2,6 +2,7 @@ package uk.co.la1tv.dvrBridgeService.handlers;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +42,10 @@ public class StartRequestHandler implements IRequestHandler {
 		if (stream == null) {
 			throw(new InternalServerErrorException("Unable to start capture for some reason."));
 		}
-		return null;
+		URL url = stream.getPlaylistUrl();
+		HashMap<String, String> response = new HashMap<>();
+		response.put("url", url.toExternalForm());
+		return response;
 	}
 
 }
