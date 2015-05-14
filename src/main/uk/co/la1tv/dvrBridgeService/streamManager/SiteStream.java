@@ -286,18 +286,15 @@ public class SiteStream {
 
 		@Override
 		public void run() {
+			
 			if (inactivityTimeLimit == 0) {
 				// disabled
 				return;
 			}
 			else if (lastActivity + (inactivityTimeLimit*1000) < System.currentTimeMillis()) {
 				// not had a registerActivity call recent enough. stop the capture.
-				// this should also cause it to get deleted as it wasn't stopped
-				// with the requestedStop flag set
-				if (capture.getCaptureState() == HlsPlaylistCaptureState.CAPTURING) {
-					logger.warn("Stopping capture because activity hasn't been registered in too long.");
-					capture.stopCapture();
-				}
+				logger.warn("Removing capture because activity hasn't been registered in too long.");
+				removeCapture();
 			}
 		}
 		
