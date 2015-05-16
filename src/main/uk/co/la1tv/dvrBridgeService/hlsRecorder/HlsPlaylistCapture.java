@@ -1,27 +1,20 @@
 package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.DefaultExecutor;
-import org.apache.commons.exec.PumpStreamHandler;
 import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.json.simple.JSONValue;
-import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
-import uk.co.la1tv.dvrBridgeService.helpers.FileHelper;
+import uk.co.la1tv.dvrBridgeService.helpers.M3u8ParserHelper;
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.exceptions.IncompletePlaylistException;
 import uk.co.la1tv.dvrBridgeService.hlsRecorder.exceptions.PlaylistRequestException;
 
@@ -37,14 +30,11 @@ public class HlsPlaylistCapture {
 	private final Object lock = new Object();
 	private final Object playlistGenerationLock = new Object();
 	
-	@Value("${m3u8Parser.nodePath}")
-	private String nodePath;
-	
-	@Value("${m3u8Parser.applicationJsPath}")
-	private String m3u8ParserApplicationPath;
-	
 	@Value("${app.playlistUpdateInterval}")
 	private int playlistUpdateInterval;
+	
+	@Autowired
+	private M3u8ParserHelper m3u8ParserHelper;
 	
 	@Autowired
 	private HlsSegmentFileStore hlsSegmentFileStore;
@@ -251,7 +241,7 @@ public class HlsPlaylistCapture {
 	 * @throws PlaylistRequestException 
 	 */
 	private void retrievePlaylistMetadata() throws PlaylistRequestException {
-		JSONObject info = getPlaylistInfo();
+		JSONObject info = m3u8ParserHelper.getPlaylistInfo(playlist.getUrl());
 		JSONObject properties = (JSONObject) info.get("properties");
 		Object targetDuration = properties.get("targetDuration");
 		if (targetDuration == null) {
@@ -260,46 +250,6 @@ public class HlsPlaylistCapture {
 		String durationStr = String.valueOf(targetDuration);
 		float duration = Float.valueOf(durationStr);
 		segmentTargetDuration = duration;
-	}
-	
-	/**
-	 * Make request to get playlist, parse it, and return info.
-	 * @return
-	 * @throws PlaylistRequestException 
-	 */
-	private JSONObject getPlaylistInfo() throws PlaylistRequestException {
-		String playlistUrl = playlist.getUrl().toExternalForm();
-		
-		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-		CommandLine commandLine = new CommandLine(FileHelper.format(nodePath));
-		commandLine.addArgument(FileHelper.format(m3u8ParserApplicationPath));
-		commandLine.addArgument(playlistUrl);
-		DefaultExecutor exec = new DefaultExecutor();
-		// handle the stdout stream, ignore error stream
-		PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream, null);
-		exec.setStreamHandler(streamHandler);
-		int exitVal;
-		try {
-			exitVal = exec.execute(commandLine);
-		} catch (IOException e1) {
-			e1.printStackTrace();
-			logger.warn("Error trying to retrieve playlist information.");
-			throw(new PlaylistRequestException());
-		}
-	    if (exitVal != 0) {
-			logger.warn("Error trying to retrieve playlist information.");
-			throw(new PlaylistRequestException());
-		}
-		String playlistInfoJsonString = outputStream.toString();
-		JSONObject playlistInfo = null;
-		try {
-			playlistInfo = (JSONObject) JSONValue.parseWithException(playlistInfoJsonString);
-		} catch (ParseException e) {
-			e.printStackTrace();
-			logger.warn("Error trying to retrieve playlist information.");
-			throw(new PlaylistRequestException());
-		}
-		return playlistInfo;
 	}
 	
 	/**
@@ -369,7 +319,7 @@ public class HlsPlaylistCapture {
 				Integer nextSequenceNumber = lastSequenceNumber != null ? lastSequenceNumber+1 : null;
 				JSONObject playlistInfo = null;
 				try {
-					playlistInfo = getPlaylistInfo();
+					playlistInfo = m3u8ParserHelper.getPlaylistInfo(playlist.getUrl());
 				} catch (PlaylistRequestException e) {
 					logger.warn("Error retrieving playlist so stopping capture.");
 					stopCapture();

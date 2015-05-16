@@ -9,14 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import uk.co.la1tv.dvrBridgeService.httpExceptions.InternalServerErrorException;
-import uk.co.la1tv.dvrBridgeService.streamManager.SiteStream;
-import uk.co.la1tv.dvrBridgeService.streamManager.StreamManager;
+import uk.co.la1tv.dvrBridgeService.streamManager.ISiteStream;
+import uk.co.la1tv.dvrBridgeService.streamManager.MasterStreamManager;
 
 @Component
 public class StartRequestHandler implements IRequestHandler {
 
 	@Autowired
-	private StreamManager streamManager;
+	private MasterStreamManager streamManager;
 	
 	@Override
 	public String getType() {
@@ -38,7 +38,7 @@ public class StartRequestHandler implements IRequestHandler {
 		} catch (MalformedURLException e) {
 			throw(new InternalServerErrorException("The provided hls playlist url is invalid."));
 		}
-		SiteStream stream = streamManager.createStream(streamId, hlsPlaylistUrl);
+		ISiteStream stream = streamManager.createStream(streamId, hlsPlaylistUrl);
 		if (stream == null) {
 			throw(new InternalServerErrorException("Unable to start capture for some reason."));
 		}

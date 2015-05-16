@@ -26,8 +26,6 @@ import uk.co.la1tv.dvrBridgeService.hlsRecorder.IPlaylistUpdatedListener;
 import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFile;
 import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFileGenerator;
 
-// TODO need to register pings and if haven't had one in more than a certain amount of time delete the capture
-
 
 /**
  * Represents a stream on the site.
@@ -36,7 +34,7 @@ import uk.co.la1tv.dvrBridgeService.servableFiles.ServableFileGenerator;
  */
 @Component
 @Scope("prototype")
-public class SiteStream {
+public class SiteStream implements ISiteStream {
 
 	private static Logger logger = Logger.getLogger(SiteStream.class);
 	
@@ -52,7 +50,8 @@ public class SiteStream {
 	
 	private final Object lock = new Object();
 	
-	// unique id for this stream provided by site
+	// unique id for this stream provided by site. This may be the id of the parent variant stream,
+	// in which case there may be other playlists which belong to that variant playlist with the same id
 	private final long siteStreamId;
 	private final URL sourcePlaylistUrl;
 	private HlsPlaylist hlsPlaylist = null;
@@ -70,7 +69,7 @@ public class SiteStream {
 	
 	@PostConstruct
 	private void onPostConstruct() {
-		hlsPlaylist = context.getBean(HlsPlaylist.class, sourcePlaylistUrl);
+		hlsPlaylist = (HlsPlaylist) context.getBean("HlsPlaylist", sourcePlaylistUrl);
 	}
 
 	/**
@@ -145,7 +144,7 @@ public class SiteStream {
 							}
 							catch(Exception e) {
 								e.printStackTrace();
-								logger.warn("Error trying to delete capture after it was stopped unexpectadly.");
+								logger.warn("Error trying to delete capture after it was stopped unexpectedly.");
 							}
 						}
 					}
@@ -228,10 +227,14 @@ public class SiteStream {
 	/**
 	 * Remove the capture for this item from the server,
 	 * and stop the recording if one is taking place.
-	 * Returns true on success or false on a failure.
+	 * Returns true if the capture should not exist after this call has completed.
 	 */
 	public boolean removeCapture() {
 		try {
+			if (capture.getCaptureState() == HlsPlaylistCaptureState.DELETED) {
+				return true;
+			}
+			
 			if (capture.getCaptureState() == HlsPlaylistCaptureState.CAPTURING) {
 				// currently capturing.
 				// stop capture first

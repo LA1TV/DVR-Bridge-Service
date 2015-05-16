@@ -6,14 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import uk.co.la1tv.dvrBridgeService.httpExceptions.InternalServerErrorException;
-import uk.co.la1tv.dvrBridgeService.streamManager.SiteStream;
-import uk.co.la1tv.dvrBridgeService.streamManager.StreamManager;
+import uk.co.la1tv.dvrBridgeService.streamManager.ISiteStream;
+import uk.co.la1tv.dvrBridgeService.streamManager.MasterStreamManager;
 
 @Component
 public class StopRequestHandler implements IRequestHandler {
 
 	@Autowired
-	private StreamManager streamManager;
+	private MasterStreamManager streamManager;
 	
 	@Override
 	public String getType() {
@@ -22,7 +22,7 @@ public class StopRequestHandler implements IRequestHandler {
 
 	@Override
 	public Object handle(long streamId, Map<String, String[]> requestParameters) {
-		SiteStream stream = streamManager.getStream(streamId);
+		ISiteStream stream = streamManager.getStream(streamId);
 		if (stream == null || !stream.stopCapture()) {
 			throw(new InternalServerErrorException("Unable to stop the capture for some reason."));
 		}
