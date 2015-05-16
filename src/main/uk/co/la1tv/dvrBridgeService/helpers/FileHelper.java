@@ -1,6 +1,7 @@
 package uk.co.la1tv.dvrBridgeService.helpers;
 
 import java.io.File;
+import java.util.Arrays;
 
 public class FileHelper {
 	
@@ -27,10 +28,12 @@ public class FileHelper {
 		return parts[parts.length-1];
 	}
 	
-	public static void purgeDirectory(File dir) {
+	public static void purgeDirectory(File dir, String[] extensions) {
 	    for (File file: dir.listFiles()) {
-	        if (file.isDirectory()) purgeDirectory(file);
-	        file.delete();
+	        if (file.isDirectory()) purgeDirectory(file, extensions);
+	        if (Arrays.asList(extensions).contains(getExtension(file.getName()))) {
+	        	file.delete();
+	        }
 	    }
 	}
 }

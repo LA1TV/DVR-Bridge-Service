@@ -54,8 +54,8 @@ public class ServableFileGenerator {
 			throw(new RuntimeException("Cannot write to web directory."));
 		}
 	
-		// empty the folder
-		FileHelper.purgeDirectory(webDirectory);
+		// empty the folder of all .ts and .m3u8 files
+		FileHelper.purgeDirectory(webDirectory, new String[]{"ts", "m3u8"});
 	}
 	
 	public ServableFile generateServableFile(String extension) {

@@ -201,6 +201,7 @@ public class HlsPlaylistCapture {
 		synchronized(playlistGenerationLock) {
 			String contents = "";
 			contents += "#EXTM3U\n";
+			contents += "#EXT-X-VERSION:3\n";
 			contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
 			contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration+"\n";
 			contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
