@@ -1,0 +1,14 @@
+# the value that must be provided in a secret url param on each request
+auth.secret=test
+# the path to the node executable
+m3u8Parser.nodePath=C:\\Program Files\\nodejs\\node
+# the path to the m3u8 parser node application file to be executed by node
+m3u8Parser.applicationJsPath=C:\\\M3U8-Parser\\application.js
+
+# the directory that is served by a web server.
+app.webDirectory=public
+# the url that maps to the above directory
+app.webDirectoryBaseUrl=http://127.0.0.1/hls/
+# number of seconds after which if a ping request has not been received it is assumed the web server has died
+# a time of 0 disables the time limit
+app.inactivityTimeLimit=90

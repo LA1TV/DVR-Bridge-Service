@@ -134,6 +134,7 @@ public class SiteStream implements ISiteStream {
 						if (captureRemovedListener != null) {
 							captureRemovedListener.onCaptureRemoved();
 						}
+						removeHlsPlaylistCapture();
 					}
 					else if (newState == HlsPlaylistCaptureState.STOPPED) {
 						if (!requestedStop) {
@@ -212,6 +213,9 @@ public class SiteStream implements ISiteStream {
 	}
 	
 	private synchronized boolean stopCaptureImpl() {
+		if (capture == null) {
+			return false;
+		}
 		try {
 			requestedStop = true;
 			capture.stopCapture();
@@ -231,7 +235,7 @@ public class SiteStream implements ISiteStream {
 	 */
 	public boolean removeCapture() {
 		try {
-			if (capture.getCaptureState() == HlsPlaylistCaptureState.DELETED) {
+			if (capture == null || capture.getCaptureState() == HlsPlaylistCaptureState.DELETED) {
 				return true;
 			}
 			
@@ -243,7 +247,6 @@ public class SiteStream implements ISiteStream {
 				}
 			}
 			capture.deleteCapture();
-			removeHlsPlaylistCapture();
 			return true;
 		}
 		catch(Exception e) {

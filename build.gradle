@@ -13,8 +13,12 @@ apply plugin: 'idea'
 apply plugin: 'spring-boot'
 
 jar {
-    baseName = 'gs-spring-boot'
+    baseName = 'la1tv-dvr-bridge-service'
     version =  '0.1.0'
+}
+
+springBoot {
+  mainClass = "uk.co.la1tv.dvrBridgeService.Application"
 }
 
 repositories {

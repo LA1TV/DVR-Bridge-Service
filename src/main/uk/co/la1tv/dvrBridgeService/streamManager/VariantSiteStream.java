@@ -50,7 +50,7 @@ public class VariantSiteStream implements ISiteStream {
 	private HlsVariantPlaylist sourceVariantPlaylist;
 	private HashMap<HlsPlaylist, SiteStream> siteStreams = null;
 	private ServableFile generatedVariantPlaylistFile = null;
-	private boolean requestedStop = false;
+	private boolean requestedRemove = false;
 	private ISiteStreamCaptureRemovedListener captureRemovedListener = null;
 	private HlsPlaylistCaptureState captureState = HlsPlaylistCaptureState.NOT_STARTED;
 	
@@ -126,15 +126,15 @@ public class VariantSiteStream implements ISiteStream {
 		}
 	}
 	
-	private void addSiteStreamStopListeners() {
+	private void addSiteStreamRemoveListeners() {
 		synchronized(siteStreams) {
 			for (SiteStream siteStream : siteStreams.values()) {
 				siteStream.setCaptureRemovedListener(new ISiteStreamCaptureRemovedListener() {
 	
 					@Override
 					public void onCaptureRemoved() {
-						if (!requestedStop) {
-							// this is a stop due to an error.
+						if (!requestedRemove) {
+							// this is a remove due to an error.
 							// delete the capture
 							if (!removeCapture()) {
 								logger.warn("Error trying to delete variant playlist capture after one of it's playlists stopped unexpectedly.");
@@ -146,7 +146,7 @@ public class VariantSiteStream implements ISiteStream {
 		}
 	}
 	
-	private void removeSiteStreamStopListeners() {
+	private void removeSiteStreamRemoveListeners() {
 		synchronized(siteStreams) {
 			for (SiteStream siteStream : siteStreams.values()) {
 				siteStream.setCaptureRemovedListener(null);
@@ -166,7 +166,7 @@ public class VariantSiteStream implements ISiteStream {
 		for (HlsPlaylist playlist : playlists) {
 			Dimension resolution = playlist.getResolution();
 			// not supporting multiple program ids (yet!)
-			contents += "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH="+playlist.getBandwidth()+",CODECS=\""+playlist.getCodecs()+"\",RESOLUTION="+resolution.getWidth()+"x"+resolution.getHeight()+"\n";
+			contents += "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH="+playlist.getBandwidth()+",CODECS=\""+playlist.getCodecs()+"\",RESOLUTION="+Math.round(resolution.getWidth())+"x"+Math.round(resolution.getHeight())+"\n";
 			URL generatedPlaylistUrl = siteStreams.get(playlist).getPlaylistUrl();
 			if (generatedPlaylistUrl == null) {
 				logger.error("Unable to retrieve generated playlist url so can't generate variant playlist.");
@@ -202,7 +202,7 @@ public class VariantSiteStream implements ISiteStream {
 				return false;
 			}
 			
-			addSiteStreamStopListeners();
+			addSiteStreamRemoveListeners();
 			
 			// attempt to start all captures
 			SiteStream siteStreamWithError = null;
@@ -228,7 +228,7 @@ public class VariantSiteStream implements ISiteStream {
 						}
 					}
 				}
-				removeSiteStreamStopListeners();
+				removeSiteStreamRemoveListeners();
 				return false;
 			}
 			
@@ -264,7 +264,6 @@ public class VariantSiteStream implements ISiteStream {
 	
 	private synchronized boolean stopCaptureImpl() {
 		try {
-			requestedStop = true;
 			boolean errorOccurredStoppingACapture = false;
 			synchronized(siteStreams) {
 				for (SiteStream siteStream : siteStreams.values()) {
@@ -280,13 +279,11 @@ public class VariantSiteStream implements ISiteStream {
 					return false;
 				}
 			}
-			removeSiteStreamStopListeners();
 			captureState = HlsPlaylistCaptureState.STOPPED;
 			return true;
 		}
 		catch(Exception e) {
 			e.printStackTrace();
-			requestedStop = false;
 			return false;
 		}
 	}
@@ -298,11 +295,11 @@ public class VariantSiteStream implements ISiteStream {
 	 */
 	public boolean removeCapture() {
 		synchronized(lock) {
-			if (captureState != HlsPlaylistCaptureState.DELETED) {
+			if (captureState == HlsPlaylistCaptureState.DELETED) {
 				return true;
 			}
 			
-			if (captureState != HlsPlaylistCaptureState.CAPTURING || captureState != HlsPlaylistCaptureState.STOPPED) {
+			if (captureState != HlsPlaylistCaptureState.CAPTURING && captureState != HlsPlaylistCaptureState.STOPPED) {
 				return false;
 			}
 			try {
@@ -327,13 +324,19 @@ public class VariantSiteStream implements ISiteStream {
 	private void removeCaptureImpl() {
 		// attempt to remove all captures
 		synchronized(siteStreams) {
-			for (SiteStream siteStream : siteStreams.values()) {
-				if (!siteStream.removeCapture()) {
-					logger.error("There was a capture that belongs to a variant playlist.");
+			requestedRemove = true;
+			try {
+				for (SiteStream siteStream : siteStreams.values()) {
+					if (!siteStream.removeCapture()) {
+						logger.error("There was an error removing a capture that belongs to a variant playlist.");
+					}
 				}
 			}
+			finally {
+				requestedRemove = false;
+			}
 		}
-		removeSiteStreamStopListeners();
+		removeSiteStreamRemoveListeners();
 		generatedVariantPlaylistFile.delete();
 		captureState = HlsPlaylistCaptureState.DELETED;
 		if (captureRemovedListener != null) {
