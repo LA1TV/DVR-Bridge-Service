@@ -1,5 +1,5 @@
 # DVR-Bridge-Service
-A service which records one or more hls streams simultaneously re-serves them as a different hls streams. It is controlled via http requests to various endpoints which handle starting the recording, stopping the recording and removing the recording from the server when it is no longer needed. The source stream playlist url is provided in the START request and the url to the generated playlist can be retrieved with the GET_URL request.
+A service which records one or more hls streams simultaneously and re-serves them as a different hls streams. It is controlled via http requests to various endpoints which handle starting the recording, stopping the recording and removing the recording from the server when it is no longer needed. The source stream playlist url is provided in the START request and the url to the generated playlist can be retrieved with the GET_URL request.
 
 It supports both [variant](https://developer.apple.com/library/ios/technotes/tn2288/_index.html#//apple_ref/doc/uid/DTS40012238-CH1-BASIC_VARIANT_PLAYLIST) and standard playlists, and generates "[EVENT](https://developer.apple.com/library/ios/technotes/tn2288/_index.html#//apple_ref/doc/uid/DTS40012238-CH1-EVENT_PLAYLIST)" type playlists.
 
