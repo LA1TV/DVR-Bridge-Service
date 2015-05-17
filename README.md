@@ -3,6 +3,8 @@ A service which records one or more hls streams simultaneously and re-serves the
 
 It supports both [variant](https://developer.apple.com/library/ios/technotes/tn2288/_index.html#//apple_ref/doc/uid/DTS40012238-CH1-BASIC_VARIANT_PLAYLIST) and standard playlists, and generates "[EVENT](https://developer.apple.com/library/ios/technotes/tn2288/_index.html#//apple_ref/doc/uid/DTS40012238-CH1-EVENT_PLAYLIST)" type playlists.
 
+It uses https://github.com/LA1TV/M3U8-Parser to parse the remote hls playlist files.
+
 Requests
 ---
 The following shows the requests that are made, when they are made, and the action the service performs as a result of the requests. It also shows what would cause each request from our website.
