@@ -192,8 +192,10 @@ public class HlsPlaylistCapture {
 			String contents = "";
 			contents += "#EXTM3U\n";
 			contents += "#EXT-X-VERSION:3\n";
+			contents += "#EXT-X-ALLOW-CACHE:NO\n";
 			contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
-			contents += "#EXT-X-TARGETDURATION:"+segmentTargetDuration+"\n";
+			// for some reason segmentTargetDuration needs to appear as an int
+			contents += "#EXT-X-TARGETDURATION:"+Math.round(segmentTargetDuration)+"\n";
 			contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
 			
 			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)

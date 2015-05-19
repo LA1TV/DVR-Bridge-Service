@@ -165,8 +165,7 @@ public class VariantSiteStream implements ISiteStream {
 		contents += "#EXT-X-VERSION:3\n";
 		for (HlsPlaylist playlist : playlists) {
 			Dimension resolution = playlist.getResolution();
-			// not supporting multiple program ids (yet!)
-			contents += "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH="+playlist.getBandwidth()+",CODECS=\""+playlist.getCodecs()+"\",RESOLUTION="+Math.round(resolution.getWidth())+"x"+Math.round(resolution.getHeight())+"\n";
+			contents += "#EXT-X-STREAM-INF:BANDWIDTH="+playlist.getBandwidth()+",CODECS=\""+playlist.getCodecs()+"\",RESOLUTION="+Math.round(resolution.getWidth())+"x"+Math.round(resolution.getHeight())+"\n";
 			URL generatedPlaylistUrl = siteStreams.get(playlist).getPlaylistUrl();
 			if (generatedPlaylistUrl == null) {
 				logger.error("Unable to retrieve generated playlist url so can't generate variant playlist.");
