@@ -27,6 +27,8 @@ public class DownloadManager {
 	
 	@Value("${app.downloadTimeout}")
 	private int downloadTimeout;
+	@Value("${app.downloadRetryCount}")
+	private int downloadRetryCount;
 	
 	private ExecutorService executor = null;
 	
@@ -65,22 +67,27 @@ public class DownloadManager {
 				callback.onDownloadStart();
 			}
 			
-			Thread downloadHandlerThread = new Thread(new DownloadHandler());
-			downloadHandlerThread.start();
-			try {
-				// wait for the download to complete for a maximum of the timeout in seconds
-				downloadHandlerThread.join(downloadTimeout*1000);
-			} catch (InterruptedException e) {
-				// shouldn't happen
-				e.printStackTrace();
-			}
 			
-			if (downloadHandlerThread.isAlive()) {
-				// request the thread to terminate as taking too long
-				logger.warn("Timing out a download because it is taking too long.");
-				downloadHandlerThread.interrupt();
+			for(int i=0; i<downloadRetryCount && !downloadSucceeded; i++) {	
+				Thread downloadHandlerThread = new Thread(new DownloadHandler());
+				downloadHandlerThread.start();
+				try {
+					// wait for the download to complete for a maximum of the timeout in seconds
+					downloadHandlerThread.join(downloadTimeout*1000);
+				} catch (InterruptedException e) {
+					// shouldn't happen
+					e.printStackTrace();
+				}
+				
+				if (downloadHandlerThread.isAlive()) {
+					// request the thread to terminate as taking too long
+					logger.warn("Timing out a download because it is taking too long.");
+					downloadHandlerThread.interrupt();
+				}
+				if (i<downloadRetryCount-1 && !downloadSucceeded) {
+					logger.info("Retrying download.");
+				}
 			}
-
 			if (callback != null) {
 				callback.onCompletion(downloadSucceeded);
 			}
