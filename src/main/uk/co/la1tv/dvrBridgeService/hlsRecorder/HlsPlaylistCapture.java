@@ -46,6 +46,7 @@ public class HlsPlaylistCapture {
 	private ArrayList<HlsSegment> segments = new ArrayList<>();
 	// the index of the last segment in the generated playlist
 	private Integer lastSegmentIndexInGeneratedPlaylist = null;
+	private boolean addedStartToGeneratedPlaylist = false;
 	private boolean addedEndListToGeneratedPlaylist = false;
 	// the maximum length that a segment can be (milliseconds)
 	// retrieved from the playlist
@@ -193,7 +194,7 @@ public class HlsPlaylistCapture {
 	private void generatePlaylistContent() {
 		synchronized(playlistGenerationLock) {
 			String contents = generatedPlaylistContent;
-			if (lastSegmentIndexInGeneratedPlaylist == null) {
+			if (!addedStartToGeneratedPlaylist) {
 				contents += "#EXTM3U\n";
 				contents += "#EXT-X-VERSION:3\n";
 				contents += "#EXT-X-ALLOW-CACHE:NO\n";
@@ -201,6 +202,7 @@ public class HlsPlaylistCapture {
 				// for some reason segmentTargetDuration needs to appear as an int
 				contents += "#EXT-X-TARGETDURATION:"+Math.round(segmentTargetDuration)+"\n";
 				contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
+				addedStartToGeneratedPlaylist = true;
 			}
 				
 			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)
@@ -237,7 +239,7 @@ public class HlsPlaylistCapture {
 				addedEndListToGeneratedPlaylist = true;
 			}
 			
-			if (generatedPlaylistContent != null && contents.equals(generatedPlaylistContent)) {
+			if (contents.equals(generatedPlaylistContent)) {
 				// no change
 				return;
 			}
