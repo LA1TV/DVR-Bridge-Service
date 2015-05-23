@@ -3,7 +3,6 @@ package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -207,9 +206,9 @@ public class HlsPlaylistCapture {
 			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)
 			boolean allSegmentsDownloaded = true;
 			synchronized(lock) {
-				List<HlsSegment> remainingSegments = segments.subList(lastSegmentIndexInGeneratedPlaylist == null ? 0 : lastSegmentIndexInGeneratedPlaylist+1, segments.size());
-				for(int i=0; i<remainingSegments.size(); i++) {
-					HlsSegment segment = remainingSegments.get(i);
+				int startSegment = lastSegmentIndexInGeneratedPlaylist == null ? 0 : lastSegmentIndexInGeneratedPlaylist+1;
+				for(int i=startSegment; i<segments.size(); i++) {
+					HlsSegment segment = segments.get(i);
 					HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
 					HlsSegmentFileState state = segmentFile.getState();
 					if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
