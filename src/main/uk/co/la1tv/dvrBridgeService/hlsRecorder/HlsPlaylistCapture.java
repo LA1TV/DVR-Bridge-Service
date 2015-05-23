@@ -3,6 +3,7 @@ package uk.co.la1tv.dvrBridgeService.hlsRecorder;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -44,13 +45,16 @@ public class HlsPlaylistCapture {
 	private Long captureStartTime = null; // start time in unix time in milliseconds
 	// the segments that have been downloaded in order
 	private ArrayList<HlsSegment> segments = new ArrayList<>();
+	// the index of the last segment in the generated playlist
+	private Integer lastSegmentIndexInGeneratedPlaylist = null;
+	private boolean addedEndListToGeneratedPlaylist = false;
 	// the maximum length that a segment can be (milliseconds)
 	// retrieved from the playlist
 	private Float segmentTargetDuration = null;
 	private final Timer updateTimer = new Timer();
 	private IPlaylistUpdatedListener playlistUpdatedListener = null;
 	private ICaptureStateChangeListener captureStateChangeListener = null;
-	private String generatedPlaylistContent = null;
+	private String generatedPlaylistContent = "";
 	// the unix time when the next chunk is expected by
 	private Long nextChunkExpectedTime = null;
 	
@@ -189,19 +193,23 @@ public class HlsPlaylistCapture {
 	 */
 	private void generatePlaylistContent() {
 		synchronized(playlistGenerationLock) {
-			String contents = "";
-			contents += "#EXTM3U\n";
-			contents += "#EXT-X-VERSION:3\n";
-			contents += "#EXT-X-ALLOW-CACHE:NO\n";
-			contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
-			// for some reason segmentTargetDuration needs to appear as an int
-			contents += "#EXT-X-TARGETDURATION:"+Math.round(segmentTargetDuration)+"\n";
-			contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
-			
+			String contents = generatedPlaylistContent;
+			if (lastSegmentIndexInGeneratedPlaylist == null) {
+				contents += "#EXTM3U\n";
+				contents += "#EXT-X-VERSION:3\n";
+				contents += "#EXT-X-ALLOW-CACHE:NO\n";
+				contents += "#EXT-X-PLAYLIST-TYPE:EVENT\n";
+				// for some reason segmentTargetDuration needs to appear as an int
+				contents += "#EXT-X-TARGETDURATION:"+Math.round(segmentTargetDuration)+"\n";
+				contents += "#EXT-X-MEDIA-SEQUENCE:0\n";
+			}
+				
 			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)
 			boolean allSegmentsDownloaded = true;
 			synchronized(lock) {
-				for(HlsSegment segment : segments) {
+				List<HlsSegment> remainingSegments = segments.subList(lastSegmentIndexInGeneratedPlaylist+1, segments.size());
+				for(int i=0; i<remainingSegments.size(); i++) {
+					HlsSegment segment = remainingSegments.get(i);
 					HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
 					HlsSegmentFileState state = segmentFile.getState();
 					if (state == HlsSegmentFileState.DOWNLOAD_FAILED) {
@@ -220,12 +228,14 @@ public class HlsPlaylistCapture {
 					}
 					contents += "#EXTINF:"+segment.getDuration()+",\n";
 					contents += segmentFile.getFileUrl().toExternalForm()+"\n";
+					lastSegmentIndexInGeneratedPlaylist = i;
 				}
 			}
 			
-			if (captureState == HlsPlaylistCaptureState.STOPPED && allSegmentsDownloaded) {
+			if (captureState == HlsPlaylistCaptureState.STOPPED && allSegmentsDownloaded && !addedEndListToGeneratedPlaylist) {
 				// recording has finished, and has all segments, so mark event as finished
 				contents += "#EXT-X-ENDLIST\n";
+				addedEndListToGeneratedPlaylist = true;
 			}
 			
 			if (generatedPlaylistContent != null && contents.equals(generatedPlaylistContent)) {
