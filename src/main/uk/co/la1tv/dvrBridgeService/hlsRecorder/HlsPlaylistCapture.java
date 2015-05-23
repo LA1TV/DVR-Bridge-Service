@@ -207,7 +207,7 @@ public class HlsPlaylistCapture {
 			// segments might be in the array that haven't actually downloaded yet (or where their download has failed)
 			boolean allSegmentsDownloaded = true;
 			synchronized(lock) {
-				List<HlsSegment> remainingSegments = segments.subList(lastSegmentIndexInGeneratedPlaylist+1, segments.size());
+				List<HlsSegment> remainingSegments = segments.subList(lastSegmentIndexInGeneratedPlaylist == null ? 0 : lastSegmentIndexInGeneratedPlaylist+1, segments.size());
 				for(int i=0; i<remainingSegments.size(); i++) {
 					HlsSegment segment = remainingSegments.get(i);
 					HlsSegmentFileProxy segmentFile = segment.getSegmentFile();
