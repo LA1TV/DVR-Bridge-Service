@@ -376,7 +376,7 @@ public class HlsPlaylistCapture {
 	private void addNewSegment(JSONObject item, int seqNum) {
 		JSONObject itemProperties = (JSONObject) item.get("properties");
 		float duration = Float.parseFloat(String.valueOf(itemProperties.get("duration")));
-		boolean discontinuityFlag = itemProperties.get("discontinuity") != null;
+		boolean discontinuityFlag = (boolean) itemProperties.get("discontinuity");
 		URL segmentUrl = null;
 		try {
 			segmentUrl = new URL(playlist.getUrl(), String.valueOf(itemProperties.get("uri")));
