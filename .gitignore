@@ -1,5 +1,7 @@
-# Created by https://www.gitignore.io
+local.properties
+public
 
+# Rest created by https://www.gitignore.io
 ### Gradle ###
 .gradle
 build/
