@@ -25,11 +25,15 @@ public class MainController {
 	}
 	
 	@RequestMapping(value = "/dvrBridgeService", method = RequestMethod.POST)
-	public Object handlePost(HttpServletRequest request, @RequestParam("type") String type, @RequestParam("id") long streamId) {
+	public Object handlePost(HttpServletRequest request, @RequestParam("type") String type, @RequestParam("id") String streamId) {
 		
 		IRequestHandler handler = requestHandlers.getRequestHandlerForType(type);
 		if (handler == null) {
 			throw(new InternalServerErrorException("Unknown type."));
+		}
+		
+		if (streamId == null || streamId.length() > 100) {
+			throw(new InternalServerErrorException("Invalid id."));
 		}
 		
 		Map<String, String[]> requestParameters = request.getParameterMap();

@@ -21,7 +21,7 @@ public class PingHandler implements IRequestHandler {
 	}
 
 	@Override
-	public Object handle(long streamId, Map<String, String[]> requestParameters) {
+	public Object handle(String streamId, Map<String, String[]> requestParameters) {
 		ISiteStream stream = streamManager.getStream(streamId);
 		if (stream == null || !stream.hasCapture()) {
 			throw(new InternalServerErrorException("Unable find stream or stream doesn't have capture."));

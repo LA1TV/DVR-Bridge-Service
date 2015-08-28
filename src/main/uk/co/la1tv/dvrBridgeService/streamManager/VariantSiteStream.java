@@ -45,7 +45,7 @@ public class VariantSiteStream implements ISiteStream {
 	private final Object lock = new Object();
 	
 	// unique id for this stream provided by site
-	private final long siteVariantStreamId;
+	private final String siteVariantStreamId;
 	private final URL sourceVariantPlaylistUrl;
 	private HlsVariantPlaylist sourceVariantPlaylist;
 	private HashMap<HlsPlaylist, SiteStream> siteStreams = null;
@@ -54,7 +54,7 @@ public class VariantSiteStream implements ISiteStream {
 	private ISiteStreamCaptureRemovedListener captureRemovedListener = null;
 	private HlsPlaylistCaptureState captureState = HlsPlaylistCaptureState.NOT_STARTED;
 	
-	public VariantSiteStream(long id, URL sourcePlaylistUrl) {
+	public VariantSiteStream(String id, URL sourcePlaylistUrl) {
 		this.siteVariantStreamId = id;
 		this.sourceVariantPlaylistUrl = sourcePlaylistUrl;
 	}
@@ -182,7 +182,7 @@ public class VariantSiteStream implements ISiteStream {
 	 * Get the id that the site has assigned to this stream.
 	 * @return
 	 */
-	public long getSiteStreamId() {
+	public String getSiteStreamId() {
 		return siteVariantStreamId;
 	}
 	

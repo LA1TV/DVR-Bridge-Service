@@ -9,5 +9,5 @@ public interface IRequestHandler {
 	
 	// handle the request and return what should be returned to the user
 	// request parameters is the data that has been provided in the query string (and post data)
-	public Object handle(long streamId, Map<String, String[]> requestParameters);
+	public Object handle(String streamId, Map<String, String[]> requestParameters);
 }

@@ -19,7 +19,7 @@ public class StreamManager {
 	@Autowired
 	private ApplicationContext context;
 	
-	private final HashMap<Long, SiteStream> siteStreams = new HashMap<>();
+	private final HashMap<String, SiteStream> siteStreams = new HashMap<>();
 	
 	/**
 	 * Creates a stream and returns a reference to it. The capture will be started.
@@ -29,7 +29,7 @@ public class StreamManager {
 	 * @param remoteHlsPlaylistUrl
 	 * @return
 	 */
-	public SiteStream createStream(final long id, URL remoteHlsPlaylistUrl) {
+	public SiteStream createStream(final String id, URL remoteHlsPlaylistUrl) {
 		synchronized(siteStreams) {
 			SiteStream siteStream = siteStreams.get(id);
 			if (siteStream != null) {
@@ -69,7 +69,7 @@ public class StreamManager {
 	 * @param id
 	 * @return
 	 */
-	public SiteStream getStream(long id) {
+	public SiteStream getStream(String id) {
 		synchronized(siteStreams) {
 			return siteStreams.get(id);
 		}

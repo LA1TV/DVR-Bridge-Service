@@ -21,7 +21,7 @@ public class VariantStreamManager {
 	private ApplicationContext context;
 	
 	// key is the id of the variant stream, and value is the array of SiteStream's it contains
-	private final HashMap<Long, VariantSiteStream> variantSiteStreams = new HashMap<>();
+	private final HashMap<String, VariantSiteStream> variantSiteStreams = new HashMap<>();
 	
 	/**
 	 * Creates each of the streams in the variant playlist and returns a reference to the object
@@ -32,7 +32,7 @@ public class VariantStreamManager {
 	 * @param remoteHlsVariantPlaylistUrl
 	 * @return
 	 */
-	public VariantSiteStream createStream(final long id, URL remoteHlsVariantPlaylistUrl) {
+	public VariantSiteStream createStream(final String id, URL remoteHlsVariantPlaylistUrl) {
 		synchronized(variantSiteStreams) {
 			VariantSiteStream variantSiteStream = variantSiteStreams.get(id);
 			if (variantSiteStream != null) {
@@ -72,7 +72,7 @@ public class VariantStreamManager {
 	 * @param id
 	 * @return
 	 */
-	public VariantSiteStream getStream(long id) {
+	public VariantSiteStream getStream(String id) {
 		synchronized(variantSiteStreams) {
 			return variantSiteStreams.get(id);
 		}

@@ -32,7 +32,7 @@ public class MasterStreamManager {
 	 * @param remoteHlsPlaylistUrl
 	 * @return
 	 */
-	public ISiteStream createStream(final long id, URL remoteHlsPlaylistUrl) {
+	public ISiteStream createStream(final String id, URL remoteHlsPlaylistUrl) {
 		try {
 			if (m3u8ParserHelper.isVariantPlaylist(remoteHlsPlaylistUrl)) {
 				return variantStreamManager.createStream(id, remoteHlsPlaylistUrl);
@@ -54,7 +54,7 @@ public class MasterStreamManager {
 	 * @param id
 	 * @return
 	 */
-	public ISiteStream getStream(long id) {
+	public ISiteStream getStream(String id) {
 		ISiteStream siteStream = variantStreamManager.getStream(id);
 		if (siteStream != null) {
 			return siteStream;
