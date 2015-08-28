@@ -24,7 +24,7 @@ public class StartRequestHandler implements IRequestHandler {
 	}
 
 	@Override
-	public Object handle(long streamId, Map<String, String[]> requestParameters) {
+	public Object handle(String streamId, Map<String, String[]> requestParameters) {
 		String[] tmp = requestParameters.get("hlsPlaylistUrl");
 		if (tmp == null) {
 			throw(new InternalServerErrorException("\"hlsPlaylistUrl\" parameter is missing from the request url and is required."));

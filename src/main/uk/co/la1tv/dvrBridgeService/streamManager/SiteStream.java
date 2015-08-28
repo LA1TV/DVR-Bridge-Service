@@ -52,7 +52,7 @@ public class SiteStream implements ISiteStream {
 	
 	// unique id for this stream provided by site. This may be the id of the parent variant stream,
 	// in which case there may be other playlists which belong to that variant playlist with the same id
-	private final long siteStreamId;
+	private final String siteStreamId;
 	private final URL sourcePlaylistUrl;
 	private HlsPlaylist hlsPlaylist = null;
 	private HlsPlaylistCapture capture = null;
@@ -62,7 +62,7 @@ public class SiteStream implements ISiteStream {
 	private long lastActivity = System.currentTimeMillis();
 	private Timer inactivityTimer = null;
 	
-	public SiteStream(long id, URL sourcePlaylistUrl) {
+	public SiteStream(String id, URL sourcePlaylistUrl) {
 		this.siteStreamId = id;
 		this.sourcePlaylistUrl = sourcePlaylistUrl;
 	}
@@ -174,7 +174,7 @@ public class SiteStream implements ISiteStream {
 	 * Get the id that the site has assigned to this stream.
 	 * @return
 	 */
-	public long getSiteStreamId() {
+	public String getSiteStreamId() {
 		return siteStreamId;
 	}
 	

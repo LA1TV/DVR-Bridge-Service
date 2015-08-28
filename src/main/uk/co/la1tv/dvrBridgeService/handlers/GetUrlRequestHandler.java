@@ -23,7 +23,7 @@ public class GetUrlRequestHandler implements IRequestHandler {
 	}
 
 	@Override
-	public Object handle(long streamId, Map<String, String[]> requestParameters) {
+	public Object handle(String streamId, Map<String, String[]> requestParameters) {
 		ISiteStream stream = streamManager.getStream(streamId);
 		if (stream == null) {
 			throw(new InternalServerErrorException("Unable to retrieve url for some reason."));

@@ -21,7 +21,7 @@ public class RemoveRequestHandler implements IRequestHandler {
 	}
 
 	@Override
-	public Object handle(long streamId, Map<String, String[]> requestParameters) {
+	public Object handle(String streamId, Map<String, String[]> requestParameters) {
 		ISiteStream stream = streamManager.getStream(streamId);
 		if (stream == null || !stream.removeCapture()) {
 			throw(new InternalServerErrorException("Unable to remove the capture for some reason."));

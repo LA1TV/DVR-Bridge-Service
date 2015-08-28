@@ -7,7 +7,7 @@ public interface ISiteStream {
 	public boolean hasCapture();
 	public boolean captureDeleted();
 	public void registerActivity();
-	public long getSiteStreamId();
+	public String getSiteStreamId();
 	public boolean startCapture();
 	public boolean stopCapture();
 	public boolean removeCapture();
