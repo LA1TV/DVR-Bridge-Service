@@ -22,9 +22,6 @@ public class DownloadManager {
 
 	private static Logger logger = Logger.getLogger(DownloadManager.class);
 	
-	@Value("${app.numMaxConcurrentDownloads}")
-	private int numMaxConcurrentDownloads;
-	
 	@Value("${app.downloadTimeout}")
 	private int downloadTimeout;
 	@Value("${app.downloadRetryCount}")
@@ -34,7 +31,7 @@ public class DownloadManager {
 	
 	@PostConstruct
 	private void onPostConstruct() {
-		executor = Executors.newFixedThreadPool(numMaxConcurrentDownloads);
+		executor = Executors.newCachedThreadPool();
 	}
 	
 	/**
