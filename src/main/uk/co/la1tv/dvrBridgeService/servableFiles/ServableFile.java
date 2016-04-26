@@ -20,6 +20,9 @@ public class ServableFile extends File {
 	private String baseUrlStr;
 	private URL baseUrl = null;
 	
+	@Value("${app.serverId}")
+	private String serverIdStr;
+	
 	public ServableFile(File parent, String child) {
 		super(parent, child);
 	}
@@ -27,7 +30,8 @@ public class ServableFile extends File {
 	@PostConstruct
 	private void onPostConstruct() {
 		try {
-			baseUrl = new URL(baseUrlStr);
+			// each server has a subdirectory set to its id
+			baseUrl = new URL(baseUrlStr+"/"+serverIdStr+"/");
 		} catch (MalformedURLException e) {
 			e.printStackTrace();
 			throw(new RuntimeException("Invalid base url."));
