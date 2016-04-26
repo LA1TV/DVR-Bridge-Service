@@ -31,7 +31,7 @@ public class ServableFile extends File {
 	private void onPostConstruct() {
 		try {
 			// each server has a subdirectory set to its id
-			baseUrl = new URL(baseUrlStr+"/"+serverIdStr);
+			baseUrl = new URL(baseUrlStr+"/"+serverIdStr+"/");
 		} catch (MalformedURLException e) {
 			e.printStackTrace();
 			throw(new RuntimeException("Invalid base url."));
