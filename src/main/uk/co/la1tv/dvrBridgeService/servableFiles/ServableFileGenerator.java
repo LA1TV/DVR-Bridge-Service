@@ -27,6 +27,9 @@ public class ServableFileGenerator {
 	@Value("${app.webDirectory}")
 	private String webDirectoryStr;
 	
+	@Value("${app.serverId}")
+	private String serverIdStr;
+	
 	@Autowired
 	private ApplicationContext context;
 	
@@ -37,7 +40,8 @@ public class ServableFileGenerator {
 	
 	@PostConstruct
 	private void onPostConstruct() {
-		webDirectory = new File(FileHelper.format(webDirectoryStr));
+		// web directory is the webDirectoryStr/serverIdStr. (Each server has its own subdirectory)
+		webDirectory = new File(FileHelper.format(webDirectoryStr+"/"+serverIdStr));
 		try {
 			digest = MessageDigest.getInstance("md5");
 		} catch (NoSuchAlgorithmException e) {
